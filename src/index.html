@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>HSK 단어장</title>
+  <meta name="description" content="HSK 단어장, 문제풀이, 오답노트, 한자 쓰기 연습">
+  <meta name="theme-color" content="#f7f7f8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111113" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="HSK 단어장">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="top">
+    <div class="bar">
+      <span class="logo">HSK 단어장</span>
+      <button class="ghost theme-btn" id="themeBtn" title="화면 모드" aria-label="화면 모드 바꾸기">🌓</button>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- 단어장 -->
+    <section id="tab-words" data-tab="words">
+      <div class="track-row">
+        <div class="seg" id="trackSeg">
+          <button data-track="n">HSK 3.0</button>
+          <button data-track="o">HSK 2.0</button>
+        </div>
+        <span class="muted small" id="trackHint"></span>
+      </div>
+      <div class="chips" id="levelChips"></div>
+      <div class="progress-card" id="levelProgress"></div>
+      <div class="toolbar">
+        <input type="search" id="wordSearch" placeholder="한자, 병음, 뜻 검색" autocomplete="off">
+      </div>
+      <div class="chips small-chips" id="wordFilter">
+        <button data-f="all">전체</button>
+        <button data-f="new">안 외운 단어</button>
+        <button data-f="known">외운 단어</button>
+        <button data-f="star">★ 별표</button>
+      </div>
+      <div class="actions">
+        <button class="primary" id="startCards">카드로 외우기</button>
+        <button id="startLevelQuiz">이 목록으로 문제 풀기</button>
+      </div>
+      <ul class="word-list" id="wordList"></ul>
+      <div id="wordMore" class="more muted small"></div>
+    </section>
+
+    <!-- 문제 -->
+    <section id="tab-quiz" data-tab="quiz" hidden>
+      <h2>문제 풀기</h2>
+      <div class="card">
+        <div class="field">
+          <div class="label">범위</div>
+          <div class="muted small" id="quizScopeLabel"></div>
+          <div class="chips small-chips" id="quizScope">
+            <button data-s="level">선택한 급수 전체</button>
+            <button data-s="new">안 외운 단어</button>
+            <button data-s="star">★ 별표</button>
+            <button data-s="wrong">오답노트</button>
+          </div>
+        </div>
+        <div class="field">
+          <div class="label">문제 유형 <span class="muted small">(여러 개 선택)</span></div>
+          <div class="chips small-chips multi" id="quizTypes">
+            <button data-t="meaning">뜻 고르기</button>
+            <button data-t="word">한자 고르기</button>
+            <button data-t="pinyin">병음 고르기</button>
+            <button data-t="listen">듣고 고르기</button>
+            <button data-t="write">직접 쓰기</button>
+          </div>
+        </div>
+        <div class="field">
+          <div class="label">문제 수</div>
+          <div class="chips small-chips" id="quizCount">
+            <button data-c="10">10</button>
+            <button data-c="20">20</button>
+            <button data-c="30">30</button>
+          </div>
+        </div>
+        <button class="primary big" id="quizStart">시작</button>
+        <div class="muted small" id="quizStartNote"></div>
+      </div>
+      <h3>최근 기록</h3>
+      <div id="quizHistory" class="muted small"></div>
+    </section>
+
+    <!-- 오답노트 -->
+    <section id="tab-notes" data-tab="notes" hidden>
+      <h2>오답노트</h2>
+      <div class="note-summary" id="noteSummary"></div>
+      <div class="actions">
+        <button class="primary" id="noteReview">오답 다시 풀기</button>
+        <button id="noteWrite">쓰기로 다시 풀기</button>
+      </div>
+      <div class="toolbar">
+        <div class="seg" id="noteFilter">
+          <button data-f="open">복습 필요</button>
+          <button data-f="done">해결</button>
+        </div>
+        <select id="noteSort" aria-label="정렬">
+          <option value="recent">최근에 틀린 순</option>
+          <option value="count">많이 틀린 순</option>
+          <option value="level">급수 순</option>
+        </select>
+      </div>
+      <ul class="note-list" id="noteList"></ul>
+      <p class="muted small">문제를 틀리면 자동으로 여기에 모입니다. 다시 풀어서 <b>2번 연속</b> 맞히면 ‘해결’로 옮겨집니다.</p>
+    </section>
+
+    <!-- 설정 -->
+    <section id="tab-settings" data-tab="settings" hidden>
+      <h2>설정</h2>
+      <div class="card">
+        <div class="row"><span>화면 모드</span>
+          <select id="setTheme"><option value="system">시스템 설정</option><option value="light">라이트</option><option value="dark">다크</option></select></div>
+        <div class="row"><span>발음 속도</span>
+          <select id="setRate"><option value="0.6">느리게</option><option value="0.8">조금 느리게</option><option value="1">보통</option></select></div>
+        <div class="row"><span>카드·문제에서 발음 자동 재생</span><input type="checkbox" id="setAutoSpeak"></div>
+        <div class="row"><span>쓰기: 틀리면 힌트 보여주기</span>
+          <select id="setHint"><option value="3">3번 틀리면</option><option value="2">2번 틀리면</option><option value="0">보여주지 않음</option></select></div>
+        <div class="row"><span>병음 표시 (단어장 목록)</span><input type="checkbox" id="setShowPy"></div>
+        <div class="row"><span>뜻 표시 (단어장 목록)</span><input type="checkbox" id="setShowKo"></div>
+      </div>
+      <h3>기록 백업</h3>
+      <div class="card">
+        <p class="muted small">기록은 이 기기의 브라우저에만 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 백업해 두세요.</p>
+        <div class="actions">
+          <button id="backupExport">백업 파일 저장</button>
+          <button id="backupImport">백업 불러오기</button>
+          <input type="file" id="backupFile" accept="application/json,.json" hidden>
+        </div>
+        <div class="actions"><button class="danger" id="resetAll">모든 기록 지우기</button></div>
+      </div>
+      <h3>홈 화면에 추가</h3>
+      <div class="card muted small">
+        아이폰: Safari 공유 버튼 → ‘홈 화면에 추가’ / 안드로이드: Chrome 메뉴 → ‘홈 화면에 추가’. 앱처럼 전체 화면으로 열리고, 한 번 연 뒤에는 인터넷 없이도 단어장과 문제풀이를 쓸 수 있습니다 (획순은 한 번 써 본 글자부터 오프라인 가능).
+      </div>
+      <h3>정보</h3>
+      <div class="card muted small" id="aboutBox">
+        단어 목록: <a href="https://github.com/drkameleon/complete-hsk-vocabulary" target="_blank" rel="noopener">complete-hsk-vocabulary</a> (MIT, 영어 뜻 CC-CEDICT)<br>
+        획순: <a href="https://github.com/chanind/hanzi-writer" target="_blank" rel="noopener">Hanzi Writer</a> (MIT), 획순 데이터 Make Me a Hanzi (Arphic Public License)<br>
+        한자음: hanja (MIT)<br>
+        <span id="koCoverage"></span>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar" id="tabbar">
+    <a href="#words" data-tab="words"><span class="ic">📖</span>단어장</a>
+    <a href="#quiz" data-tab="quiz"><span class="ic">✏️</span>문제</a>
+    <a href="#notes" data-tab="notes"><span class="ic">📕</span>오답노트<b class="badge" id="noteBadge" hidden></b></a>
+    <a href="#settings" data-tab="settings"><span class="ic">⚙️</span>설정</a>
+  </nav>
+
+  <!-- 전체 화면 레이어 (단어 상세, 카드, 문제, 쓰기) -->
+  <div id="layers"></div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="lib/hanzi-writer.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
