@@ -1,4 +1,4 @@
-// HSK 데이터(complete.json, MIT) + 한국어 뜻(data-src/ko/*.tsv) + 한자음 → src/data/words.json
+// HSK 데이터(complete.json, MIT) + 한국어 뜻(data-src/ko/*.tsv) + 한자음 → docs/data/words.json
 const fs = require('fs');
 const path = require('path');
 const root = path.join(__dirname, '..');
@@ -72,8 +72,8 @@ for (const w of raw) {
 words.sort((a, b) => (a.n || 99) - (b.n || 99) || (a.o || 99) - (b.o || 99) || a.q - b.q);
 for (const w of words) delete w.q;
 
-fs.mkdirSync(path.join(root, 'src/data'), { recursive: true });
-fs.writeFileSync(path.join(root, 'src/data/words.json'), JSON.stringify(words));
+fs.mkdirSync(path.join(root, 'docs/data'), { recursive: true });
+fs.writeFileSync(path.join(root, 'docs/data/words.json'), JSON.stringify(words));
 const withKo = (lv) => {
   const ws = words.filter((w) => w.n === lv);
   return `${lv}급 ${ws.filter((w) => w.k).length}/${ws.length}`;
@@ -82,7 +82,7 @@ console.log('words', words.length, [1, 2, 3, 4, 5, 6, 7].map(withKo).join(', '))
 
 // 획순 데이터 (hanzi-writer-data, Arphic Public License): HSK 단어에 나오는 글자만, 글자 코드 % 16 으로 16개 파일에 묶음
 const hwd = path.join(root, 'node_modules/hanzi-writer-data');
-const outS = path.join(root, 'src/strokes');
+const outS = path.join(root, 'docs/strokes');
 fs.rmSync(outS, { recursive: true, force: true });
 fs.mkdirSync(outS, { recursive: true });
 const chars = new Set();

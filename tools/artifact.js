@@ -1,8 +1,8 @@
-// claude.ai 링크용 페이지: src/index.html 에서 html/head/body 껍데기를 빼고 CSS·JS 를 안에 넣음
+// claude.ai 링크용 페이지: docs/index.html 에서 html/head/body 껍데기를 빼고 CSS·JS 를 안에 넣음
 const fs = require('fs');
 const path = require('path');
 const root = path.join(__dirname, '..');
-const src = (f) => fs.readFileSync(path.join(root, 'src', f), 'utf8');
+const src = (f) => fs.readFileSync(path.join(root, 'docs', f), 'utf8');
 const html = src('index.html');
 const body = html.slice(html.indexOf('<body>') + 6, html.lastIndexOf('</body>'))
   .replace(/<script src="[^"]+"><\/script>\s*/g, '');
