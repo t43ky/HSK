@@ -49,6 +49,10 @@
     x: '<path d="M7 7l10 10M17 7L7 17"/>',
     chevronLeft: '<path d="M14.5 6l-6 6 6 6"/>',
     chevronRight: '<path d="M9.5 6l6 6-6 6"/>',
+    home: '<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>',
+    cards: '<rect x="4" y="7" width="12" height="13" rx="2.5"/><path d="M8 4h9.5A2.5 2.5 0 0 1 20 6.5V16"/>',
+    square: '<rect x="4.5" y="4.5" width="15" height="15" rx="3.5"/>',
+    checkSquare: '<rect x="4.5" y="4.5" width="15" height="15" rx="3.5" fill="currentColor"/><path d="M8.5 12.2l2.5 2.5 4.6-5" stroke="var(--bg)" stroke-width="2.2"/>',
   };
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
@@ -144,12 +148,13 @@
   const levelWords = (track = DB.set.track, lv = DB.set.level) => WORDS.filter((w) => w[track] === lv);
 
   /* ---------------- 탭 ---------------- */
-  let curTab = 'words';
+  let curTab = 'home';
   function showTab(name) {
-    if (!['words', 'quiz', 'notes', 'settings'].includes(name)) name = 'words';
+    if (!['home', 'words', 'quiz', 'notes', 'settings'].includes(name)) name = 'home';
     curTab = name;
     $$('main > section').forEach((s) => (s.hidden = s.dataset.tab !== name));
     $$('#tabbar a').forEach((a) => a.classList.toggle('on', a.dataset.tab === name));
+    if (name === 'home') renderHome();
     if (name === 'words') renderWords();
     if (name === 'quiz') renderQuizTab();
     if (name === 'notes') renderNotes();
@@ -166,9 +171,9 @@
 
   /* ---------------- 레이어 (뒤로 가기 지원) ---------------- */
   const stack = [];
-  function openLayer({ title, render, onClose, right }) {
+  function openLayer({ title, render, onClose, right, cls }) {
     const el = document.createElement('div');
-    el.className = 'layer';
+    el.className = 'layer' + (cls ? ' ' + cls : '');
     el.innerHTML = `<div class="layer-head"><button class="ghost back">${ic('chevronLeft')} 닫기</button><div class="title">${esc(title)}</div><div class="right">${right || '<span style="display:inline-block;min-width:64px"></span>'}</div></div><div class="layer-body"></div>`;
     $('#layers').appendChild(el);
     document.body.style.overflow = 'hidden';
@@ -220,9 +225,103 @@
   }
   function refreshCurrent() {
     updateBadge();
+    if (curTab === 'home') renderHome();
     if (curTab === 'words') renderWords(true);
     if (curTab === 'quiz') renderQuizTab();
     if (curTab === 'notes') renderNotes();
+  }
+
+  /* ---------------- 홈 메뉴 ---------------- */
+  function goTab(name) {
+    if (!IN_FRAME) history.replaceState(history.state, '', '#' + name);
+    showTab(name);
+  }
+  function renderHome() {
+    const s = DB.set;
+    const ws = levelWords();
+    const known = ws.filter((w) => DB.st[w.w] === 2).length;
+    const left = ws.length - known;
+    const wrong = Object.values(DB.wrong).filter((x) => !x.ok).length;
+    const stars = Object.keys(DB.star).length;
+    const pct = ws.length ? Math.round((known / ws.length) * 100) : 0;
+    const tile = (go, icon, title, sub) =>
+      `<button class="tile" data-go="${go}"><span class="tile-ic">${ic(icon)}</span><span class="tile-t">${title}</span><span class="tile-s">${sub}</span></button>`;
+    $('#homeBox').innerHTML = `
+      <button class="home-level" data-go="level">
+        <span class="hl-top"><span>HSK ${s.track === 'n' ? '3.0' : '2.0'}</span><b>${levelName(s.track, s.level)}</b><span class="hl-change">바꾸기 ${ic('chevronRight')}</span></span>
+        <span class="hl-num"><b>${known}</b> / ${ws.length} 외움 <span>${pct}%</span></span>
+        <span class="pbar"><i style="width:${pct}%"></i></span>
+      </button>
+      <div class="tiles">
+        ${tile('words', 'book', '단어장', `${ws.length}단어`)}
+        ${tile('cards', 'cards', '카드 외우기', left ? `안 외운 ${left}개` : '다 외웠어요')}
+        ${tile('quiz', 'pencil', '문제 풀기', '뜻 · 한자 · 병음 · 듣기')}
+        ${tile('notes', 'notes', '오답노트', wrong ? `복습할 오답 ${wrong}개` : '오답 없음')}
+        ${tile('write', 'write', '쓰기 연습', '획순대로 직접 쓰기')}
+        ${tile('star', 'star', '별표 단어', stars ? `${stars}개` : '아직 없음')}
+      </div>
+      <button class="home-settings" data-go="settings">${ic('sliders')}<span>설정 · 백업</span>${ic('chevronRight')}</button>`;
+  }
+  $('#homeBox').onclick = (e) => {
+    const b = e.target.closest('[data-go]');
+    if (!b) return;
+    const g = b.dataset.go;
+    if (g === 'words' || g === 'quiz' || g === 'notes' || g === 'settings') return goTab(g);
+    if (g === 'level') return pickLevel();
+    if (g === 'cards') {
+      const ws = levelWords();
+      const left = ws.filter((w) => DB.st[w.w] !== 2);
+      return startCards(left.length ? left : ws);
+    }
+    if (g === 'write') {
+      const ws = levelWords().filter(canWrite);
+      const left = ws.filter((w) => DB.st[w.w] !== 2);
+      return startQuiz({ pool: left.length ? left : ws, label: '쓰기 연습', types: ['write'], count: 10 });
+    }
+    if (g === 'star') {
+      DB.set.filter = 'star';
+      save();
+      return goTab('words');
+    }
+  };
+  function pickLevel() {
+    openLayer({
+      title: '급수 고르기',
+      render: (L) => {
+        const draw = () => {
+          const s = DB.set;
+          const max = s.track === 'n' ? 7 : 6;
+          L.body.innerHTML = `
+            <div class="seg" style="display:flex;margin-bottom:14px">
+              <button style="flex:1" data-t="n" class="${s.track === 'n' ? 'on' : ''}">HSK 3.0</button>
+              <button style="flex:1" data-t="o" class="${s.track === 'o' ? 'on' : ''}">HSK 2.0</button>
+            </div>
+            <div class="level-list">${Array.from({ length: max }, (_, i) => i + 1)
+              .map((lv) => {
+                const ws = levelWords(s.track, lv);
+                const k = ws.filter((w) => DB.st[w.w] === 2).length;
+                return `<button data-lv="${lv}" class="${lv === s.level ? 'on' : ''}"><b>${levelName(s.track, lv)}</b><span>${k} / ${ws.length}</span>${lv === s.level ? ic('check') : ''}</button>`;
+              })
+              .join('')}</div>`;
+        };
+        draw();
+        L.body.onclick = (e) => {
+          const b = e.target.closest('button');
+          if (!b) return;
+          if (b.dataset.t) {
+            DB.set.track = b.dataset.t;
+            if (DB.set.level > (DB.set.track === 'n' ? 7 : 6)) DB.set.level = 1;
+            save();
+            draw();
+          }
+          if (b.dataset.lv) {
+            DB.set.level = +b.dataset.lv;
+            save();
+            closeTopLayer();
+          }
+        };
+      },
+    });
   }
 
   /* ---------------- 단어장 ---------------- */
@@ -354,6 +453,7 @@
     if (!w) return;
     openLayer({
       title: '단어',
+      cls: 'has-dock',
       render: (L) => {
         const draw = () => {
           const s = DB.st[w.w] || 0;
@@ -365,10 +465,6 @@
               <div class="big-py">${esc(w.p)} <button class="ghost speak icon-btn" data-act="speak" aria-label="발음 듣기">${ic('sound')}</button></div>
               <div class="big-ko">${esc(w.k || '')}</div>
               ${!w.k && w.e ? `<div class="sub">${esc(w.e)}</div>` : ''}
-            </div>
-            <div class="actions" style="justify-content:center">
-              <button data-act="star">${DB.star[w.w] ? ic('starFill') + ' 별표 해제' : ic('star') + ' 별표'}</button>
-              <button data-act="known" class="${s === 2 ? 'primary' : ''}">${s === 2 ? ic('check') + ' 외움' : '외웠어요'}</button>
             </div>
             <dl class="kv">
               ${w.t ? `<dt>번체</dt><dd class="zh">${esc(w.t)}</dd>` : ''}
@@ -383,6 +479,11 @@
               .map((c) => `<button class="char-btn" data-act="write" data-c="${esc(c)}"><span class="c zh">${esc(c)}</span><span class="h">${esc(CHAR_HANJA(c))}</span></button>`)
               .join('')}</div>
             <button class="big" data-act="writeAll">${ic('write')} ‘${esc(w.w)}’ 전체 쓰기</button>` : ''}
+            <div class="dock" role="toolbar" aria-label="단어 표시">
+              <button class="dock-btn ${DB.star[w.w] ? 'on' : ''}" data-act="star" aria-pressed="${!!DB.star[w.w]}" aria-label="별표" title="별표">${ic(DB.star[w.w] ? 'starFill' : 'star')}</button>
+              <button class="dock-btn" data-act="speak" aria-label="발음 듣기" title="발음 듣기">${ic('sound')}</button>
+              <button class="dock-btn ${s === 2 ? 'on' : ''}" data-act="known" aria-pressed="${s === 2}" aria-label="외웠어요" title="외웠어요">${ic(s === 2 ? 'checkSquare' : 'square')}</button>
+            </div>
           `;
         };
         draw();
@@ -396,12 +497,14 @@
             else DB.star[w.w] = Date.now();
             save();
             draw();
+            toast(DB.star[w.w] ? '별표 했어요' : '별표를 뺐어요');
           }
           if (a === 'known') {
             if (DB.st[w.w] === 2) delete DB.st[w.w];
             else DB.st[w.w] = 2;
             save();
             draw();
+            toast(DB.st[w.w] === 2 ? '외운 단어로 표시했어요' : '외운 단어에서 뺐어요');
           }
           if (a === 'write') openWriting(w, [...w.w].filter(isHan).indexOf(b.dataset.c));
           if (a === 'writeAll') openWriting(w, 0);
@@ -1219,10 +1322,10 @@
       return;
     }
     for (const w of WORDS) BY.set(w.w, w);
-    if (IN_FRAME) showTab('words');
+    if (IN_FRAME) showTab('home');
     else {
-      history.replaceState({ layer: 0 }, '', location.hash || '#words');
-      showTab((location.hash || '#words').slice(1));
+      history.replaceState({ layer: 0 }, '', location.hash || '#home');
+      showTab((location.hash || '#home').slice(1));
     }
     updateBadge();
   }

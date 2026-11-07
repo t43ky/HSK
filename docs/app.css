@@ -253,3 +253,53 @@ button.primary.danger-fill { background: var(--bad); border-color: var(--bad); }
 .layer-head .back { display: inline-flex; align-items: center; gap: 2px; color: var(--fg); }
 .next-row button, .write-tools button, .actions button, .char-btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
 .chips button.on { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+
+/* 홈 메뉴 */
+.home { display: grid; gap: 12px; padding-top: 4px; }
+.home-level {
+  display: grid; gap: 8px; text-align: left; padding: 16px; border-radius: 18px; background: var(--panel); border: 1px solid var(--line); width: 100%;
+}
+.hl-top { display: flex; align-items: baseline; gap: 8px; color: var(--muted); font-size: 13px; }
+.hl-top b { color: var(--fg); font-size: 22px; letter-spacing: -.01em; }
+.hl-change { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; font-size: 13px; }
+.hl-num { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.hl-num b { color: var(--fg); font-size: 17px; }
+.hl-num span { float: right; }
+.home-level .pbar { height: 6px; }
+.home-level .pbar i { background: var(--fg); }
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; min-height: 116px;
+  padding: 16px; border-radius: 18px; background: var(--panel); border: 1px solid var(--line); color: var(--fg);
+}
+.tile-ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--soft); margin-bottom: auto; }
+.tile-ic .i { width: 22px; height: 22px; stroke-width: 1.7; }
+.tile-t { font-weight: 700; font-size: 16px; margin-top: 14px; }
+.tile-s { font-size: 12.5px; color: var(--muted); }
+@media (hover: hover) { .tile:hover, .home-level:hover, .home-settings:hover { border-color: var(--fg); color: var(--fg); } }
+.home-settings {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 14px 16px; border-radius: 14px; background: transparent; border: 1px solid var(--line); color: var(--fg);
+}
+.home-settings span { flex: 1; text-align: left; }
+.home-settings .i:last-child { color: var(--muted); }
+.level-list { display: grid; gap: 8px; }
+.level-list button { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-radius: 14px; text-align: left; }
+.level-list button span { color: var(--muted); font-size: 13px; margin-left: auto; font-variant-numeric: tabular-nums; }
+.level-list button.on { border-color: var(--fg); }
+
+/* 단어 상세: 엄지가 닿는 아래쪽 버튼 줄 */
+.layer.has-dock .layer-body { padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)); }
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; justify-content: center; gap: 18px;
+  padding: 18px 16px calc(22px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to bottom, transparent, var(--bg) 40%);
+}
+.dock-btn {
+  width: 58px; height: 58px; border-radius: 50%; padding: 0; display: grid; place-items: center;
+  background: var(--panel); border: 1px solid var(--line); color: var(--fg); box-shadow: 0 4px 16px rgba(0,0,0,.08);
+}
+.dock-btn .i { width: 26px; height: 26px; stroke-width: 1.7; }
+.dock-btn.on { border-color: var(--fg); }
+@media (hover: hover) { .dock-btn:hover { color: var(--fg); border-color: var(--fg); } }
+
+body:has(.layer.has-dock) .toast { bottom: calc(108px + env(safe-area-inset-bottom, 0px)); }

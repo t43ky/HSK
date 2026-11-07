@@ -25,8 +25,13 @@
   </header>
 
   <main id="main">
+    <!-- 홈 메뉴 -->
+    <section id="tab-home" data-tab="home">
+      <div id="homeBox" class="home"></div>
+    </section>
+
     <!-- 단어장 -->
-    <section id="tab-words" data-tab="words">
+    <section id="tab-words" data-tab="words" hidden>
       <div class="track-row">
         <div class="seg" id="trackSeg">
           <button data-track="n">HSK 3.0</button>
@@ -154,6 +159,7 @@
   </main>
 
   <nav class="tabbar" id="tabbar">
+    <a href="#home" data-tab="home"><span class="ic" data-ic="home"></span>홈</a>
     <a href="#words" data-tab="words"><span class="ic" data-ic="book"></span>단어장</a>
     <a href="#quiz" data-tab="quiz"><span class="ic" data-ic="pencil"></span>문제</a>
     <a href="#notes" data-tab="notes"><span class="ic" data-ic="notes"></span>오답노트<b class="badge" id="noteBadge" hidden></b></a>
