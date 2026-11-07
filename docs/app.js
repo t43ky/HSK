@@ -58,7 +58,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-07-2357'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-08-0003'; // tools/bump.js 가 sw.js 와 함께 올림
 
   /* ---------------- 저장 ---------------- */
   const KEY = 'hsk-study-v1';
@@ -949,10 +949,16 @@
           const fb = $('.qz-fb', L.body);
           fb.className = 'qz-fb ' + (r.ok ? 'ok' : 'bad');
           fb.innerHTML = `<span class="fb-mark">${ic(r.ok ? 'check' : 'x')}</span><span class="fb-t"><b>${r.ok ? '정답' : '오답'}</b>${r.solved ? ' · 오답 해결' : ''}<span class="fb-ans"><span class="zh">${esc(q.w.w)}</span> <span class="py">${esc(q.w.p)}</span> ${esc(meaning(q.w))}</span></span>`;
-          $('.qz-actions', L.body).innerHTML = `<button data-act="speakAns" class="icon-btn sq" aria-label="발음 듣기">${ic('sound')}</button><button data-act="detail">단어 보기</button><button class="primary grow" data-act="next">${i + 1 >= qs.length ? '결과 보기' : '다음 ' + ic('chevronRight')}</button>`;
+          const mid = $('.qz-mid', L.body);
+          if (mid && !mid.innerHTML.trim() && q.type !== 'listen') mid.innerHTML = replayBtn();
+          $('.qz-actions', L.body).innerHTML = `<button data-act="detail">단어 보기</button>${markBtns(q.w)}<button class="primary grow" data-act="next">${i + 1 >= qs.length ? '결과 보기' : '다음 ' + ic('chevronRight')}</button>`;
           $('[data-act=next]', L.body).focus({ preventScroll: true });
         };
 
+        const replayBtn = () => `<button class="replay" data-act="speakQ" aria-label="다시 듣기" title="다시 듣기">${ic('sound')}</button>`;
+        const markBtns = (w) =>
+          `<button class="mini ${DB.star[w.w] ? 'star-on' : ''}" data-act="qStar" aria-pressed="${!!DB.star[w.w]}" aria-label="별표" title="별표">${ic(DB.star[w.w] ? 'starFill' : 'star')}</button>` +
+          `<button class="mini ${DB.st[w.w] === 2 ? 'known-on' : ''}" data-act="qKnown" aria-pressed="${DB.st[w.w] === 2}" aria-label="외운 단어" title="외운 단어">${ic(DB.st[w.w] === 2 ? 'circleCheck' : 'circle')}</button>`;
         const head = (q) =>
           `<div class="qz-top"><div class="q-progress"><i style="width:${(i / qs.length) * 100}%"></i></div><div class="q-kind"><span>${TYPE_NAME[q.type]}</span><span>${i + 1} / ${qs.length}</span></div></div>`;
 
@@ -974,10 +980,11 @@
           const label = (o) => (q.type === 'meaning' ? esc(meaning(o)) : q.type === 'pinyin' ? esc(o.p) : esc(o.w));
           L.body.innerHTML = `<div class="qz">${head(q)}
             <div class="qz-prompt">${prompt}</div>
+            <div class="qz-mid">${q.type === 'meaning' ? replayBtn() : ''}</div>
             <div class="qz-fb"></div>
             <div class="qz-bottom">
               <div class="opts ${zhOpts ? 'grid2' : ''}">${q.opts.map((o, k) => `<button data-k="${k}" class="${zhOpts ? 'zh zh-opt' : ''}">${label(o)}</button>`).join('')}</div>
-              <div class="qz-actions">${q.type === 'meaning' || q.type === 'listen' ? `<button class="replay" data-act="speakQ" aria-label="다시 듣기" title="다시 듣기">${ic('sound')}</button>` : ''}<button class="ghost" data-act="idk">모르겠어요</button></div>
+              <div class="qz-actions"><button class="ghost" data-act="idk">모르겠어요</button></div>
             </div></div>`;
           if (q.type === 'listen' || (DB.set.autoSpeak && q.type !== 'word' && q.type !== 'pinyin')) setTimeout(() => speak(w.w), 150);
         };
@@ -991,6 +998,7 @@
           L.body.innerHTML = `<div class="qz">${head(q)}
             <div class="qz-prompt write"><div class="qz-ko">${esc(meaning(w))}</div><div class="qz-py">${esc(w.p)} <button class="ghost icon-btn" data-act="speakQ" aria-label="발음 듣기">${ic('sound')}</button></div></div>
             <div class="write-wrap"><div class="write-chars"></div><div class="pad"></div><div class="write-status muted"></div></div>
+            <div class="qz-mid"></div>
             <div class="qz-fb"></div>
             <div class="qz-bottom"><div class="qz-actions"><button class="ghost" data-act="idk">모르겠어요 (정답 보기)</button></div></div></div>`;
           const status = (t, c) => {
@@ -1043,6 +1051,21 @@
           if (!q) return;
           const act = b.dataset.act;
           if (act === 'speakQ' || act === 'speakAns') return speak(q.w.w);
+          if (act === 'qStar' || act === 'qKnown') {
+            const w = q.w;
+            if (act === 'qStar') {
+              if (DB.star[w.w]) delete DB.star[w.w];
+              else DB.star[w.w] = Date.now();
+            } else if (DB.st[w.w] === 2) DB.st[w.w] = 1;
+            else DB.st[w.w] = 2;
+            save();
+            const tmp = document.createElement('div');
+            tmp.innerHTML = markBtns(w);
+            const nb = tmp.querySelector(`[data-act=${act}]`);
+            nb.classList.add('pop');
+            b.replaceWith(nb);
+            return;
+          }
           if (act === 'detail') return openWord(q.w.w);
           if (act === 'next') {
             i++;

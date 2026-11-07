@@ -378,3 +378,16 @@ body:has(.layer.has-dock) .toast { bottom: calc(108px + env(safe-area-inset-bott
 /* 문제: 다시 듣기 (아이콘만) */
 .qz-actions .replay { width: 54px; padding: 0; color: var(--fg); }
 .qz-actions .replay .i { width: 22px; height: 22px; }
+
+/* 문제와 보기 사이의 듣기 버튼, 답한 뒤 작은 별표·외움 버튼 */
+.qz-mid { display: flex; justify-content: center; }
+.qz-mid:empty { display: none; }
+.qz-mid .replay { width: 52px; height: 52px; border-radius: 50%; padding: 0; display: grid; place-items: center; color: var(--fg); }
+.qz-mid .replay .i { width: 22px; height: 22px; }
+.quiz-layer .write-wrap ~ .qz-mid { display: none; }
+.qz-actions .mini { width: 50px; padding: 0; color: var(--fg); }
+.qz-actions .mini .i { width: 22px; height: 22px; }
+.qz-actions .mini.star-on { color: var(--star); background: var(--star-soft); border-color: var(--star); }
+.qz-actions .mini.known-on { color: var(--known); background: var(--known-soft); border-color: var(--known); }
+.qz-actions .mini.pop .i { animation: pop .28s ease-out; }
+@media (prefers-reduced-motion: reduce) { .qz-actions .mini.pop .i { animation: none; } }
