@@ -80,19 +80,21 @@ const withKo = (lv) => {
 };
 console.log('words', words.length, [1, 2, 3, 4, 5, 6, 7].map(withKo).join(', '));
 
-// 획순 데이터 (hanzi-writer-data, Arphic Public License): HSK 단어에 나오는 글자만 복사
+// 획순 데이터 (hanzi-writer-data, Arphic Public License): HSK 단어에 나오는 글자만, 글자 코드 % 16 으로 16개 파일에 묶음
 const hwd = path.join(root, 'node_modules/hanzi-writer-data');
 const outS = path.join(root, 'src/strokes');
+fs.rmSync(outS, { recursive: true, force: true });
 fs.mkdirSync(outS, { recursive: true });
 const chars = new Set();
-for (const w of words) for (const c of w.w) if (/[㐀-鿿]/.test(c)) chars.add(c);
+for (const w of words) for (const c of w.w) if (/[\u3400-\u9fff]/.test(c)) chars.add(c);
+const packs = Array.from({ length: 16 }, () => ({}));
 let copied = 0, missing = [];
-for (const c of chars) {
+for (const c of [...chars].sort()) {
   const src = path.join(hwd, c + '.json');
-  if (fs.existsSync(src)) {
-    fs.copyFileSync(src, path.join(outS, c + '.json'));
-    copied++;
-  } else missing.push(c);
+  if (!fs.existsSync(src)) { missing.push(c); continue; }
+  packs[c.codePointAt(0) % 16][c] = JSON.parse(fs.readFileSync(src, 'utf8'));
+  copied++;
 }
-for (const f of ['ARPHICPL.TXT']) fs.copyFileSync(path.join(hwd, f), path.join(outS, 'LICENSE-' + f));
+packs.forEach((p, i) => fs.writeFileSync(path.join(outS, `s${String(i).padStart(2, '0')}.json`), JSON.stringify(p)));
+fs.copyFileSync(path.join(hwd, 'ARPHICPL.TXT'), path.join(outS, 'LICENSE-ARPHICPL.txt'));
 console.log('strokes', copied, 'missing', missing.join(''));

@@ -22,6 +22,15 @@
     return `${d.getMonth() + 1}/${d.getDate()}`;
   };
 
+  // claude.ai 링크(iframe) 안에서는 history/hash/다운로드/confirm 을 쓰지 않음
+  const IN_FRAME = (() => {
+    try {
+      return window.top !== window;
+    } catch {
+      return true;
+    }
+  })();
+
   /* ---------------- 저장 ---------------- */
   const KEY = 'hsk-study-v1';
   const DEFAULTS = {
@@ -128,7 +137,7 @@
   $$('#tabbar a').forEach((a) =>
     a.addEventListener('click', (e) => {
       e.preventDefault();
-      history.replaceState(history.state, '', '#' + a.dataset.tab);
+      if (!IN_FRAME) history.replaceState(history.state, '', '#' + a.dataset.tab);
       showTab(a.dataset.tab);
     }),
   );
@@ -143,8 +152,8 @@
     document.body.style.overflow = 'hidden';
     const L = { el, body: $('.layer-body', el), onClose, setTitle: (t) => ($('.title', el).textContent = t) };
     stack.push(L);
-    history.pushState({ layer: stack.length }, '');
-    $('.back', el).onclick = () => history.back();
+    if (!IN_FRAME) history.pushState({ layer: stack.length }, '');
+    $('.back', el).onclick = () => closeTopLayer();
     render(L);
     return L;
   }
@@ -165,7 +174,27 @@
     while (stack.length > depth) popLayer();
   });
   function closeTopLayer() {
-    history.back();
+    if (IN_FRAME) popLayer();
+    else history.back();
+  }
+
+  // 페이지 안 확인 창 (confirm 대체)
+  function ask(msg, okLabel = '확인', danger = false) {
+    return new Promise((resolve) => {
+      const el = document.createElement('div');
+      el.className = 'modal';
+      el.innerHTML = `<div class="modal-box" role="dialog" aria-modal="true"><p></p><div class="actions" style="justify-content:flex-end"><button data-r="0">취소</button><button data-r="1" class="primary ${danger ? 'danger-fill' : ''}"></button></div></div>`;
+      $('p', el).textContent = msg;
+      $('[data-r="1"]', el).textContent = okLabel;
+      document.body.appendChild(el);
+      $('[data-r="1"]', el).focus();
+      el.onclick = (e) => {
+        const b = e.target.closest('[data-r]');
+        if (!b && e.target !== el) return;
+        el.remove();
+        resolve(!!b && b.dataset.r === '1');
+      };
+    });
   }
   function refreshCurrent() {
     updateBadge();
@@ -453,6 +482,20 @@
     `<svg class="grid" width="${size}" height="${size}"><line x1="0" y1="${size / 2}" x2="${size}" y2="${size / 2}"/><line x1="${size / 2}" y1="0" x2="${size / 2}" y2="${size}"/><line x1="0" y1="0" x2="${size}" y2="${size}"/><line x1="${size}" y1="0" x2="0" y2="${size}"/></svg>`;
   const boxSize = () => Math.max(220, Math.min(340, window.innerWidth - 48, window.innerHeight - 380));
 
+  // 획순 데이터: 글자 코드 % 16 으로 나눈 묶음 파일 (strokes/s00.json ~ s15.json)
+  const packs = {};
+  const strokePack = (c) => {
+    const i = String(c.codePointAt(0) % 16).padStart(2, '0');
+    if (!packs[i])
+      packs[i] = fetch(`strokes/s${i}.json`)
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
+        .catch((e) => {
+          delete packs[i];
+          throw e;
+        });
+    return packs[i];
+  };
+
   // 쓰기 판 하나 만들기. opts: { char, outline, hint, onDone(mistakes), onMistake, onLoadError }
   function makeWriter(host, opts) {
     const size = boxSize();
@@ -471,9 +514,8 @@
       highlightOnComplete: true,
       ...writerColors(),
       charDataLoader: (c, ok, fail) =>
-        fetch('strokes/' + encodeURIComponent(c) + '.json')
-          .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
-          .then(ok, fail),
+        strokePack(c)
+          .then((pack) => (pack[c] ? ok(pack[c]) : fail(new Error('no data')))),
       onLoadCharDataError: () => opts.onLoadError && opts.onLoadError(),
     });
     return writer;
@@ -644,9 +686,13 @@
 
   // 보기(오답) 만들기
   function distractors(w, type, n = 3) {
-    const lv = w[DB.set.track] || w.n || w.o;
-    let cand = WORDS.filter((x) => (x.n === w.n || x.o === w.o || x[DB.set.track] === lv) && x.w !== w.w);
-    if (cand.length < 30) cand = WORDS.filter((x) => x.w !== w.w);
+    // 보기는 같은 급수(지금 고른 기준)에서, 한국어 뜻이 있는 단어로 (영어 보기가 섞이지 않게)
+    const tr = w[DB.set.track] ? DB.set.track : w.n ? 'n' : 'o';
+    const lv = w[tr];
+    const hasKo = (x) => !w.k || x.k;
+    let cand = WORDS.filter((x) => x[tr] === lv && x.w !== w.w && hasKo(x));
+    if (cand.length < 30) cand = WORDS.filter((x) => x.w !== w.w && hasKo(x) && Math.abs((x[tr] || 9) - lv) <= 1);
+    if (cand.length < 30) cand = WORDS.filter((x) => x.w !== w.w && hasKo(x));
     const key = type === 'pinyin' ? (x) => plain(x.p) + x.p : type === 'meaning' ? (x) => meaning(x) : (x) => x.w;
     const myKey = key(w);
     const out = [];
@@ -725,6 +771,7 @@
               i = 0;
               results.length = 0;
               qs = shuffle(again);
+              L.body.onclick = onAnswer; // 결과 화면용 클릭 처리를 문제 풀이용으로 되돌림
               show();
             } else if (li) openWord(li.dataset.w);
           };
@@ -832,7 +879,7 @@
         };
 
         show();
-        L.body.onclick = (e) => {
+        const onAnswer = (e) => {
           const b = e.target.closest('button');
           if (!b) return;
           const q = qs[i];
@@ -882,6 +929,7 @@
             feedback(q, r);
           }
         };
+        L.body.onclick = onAnswer;
       },
     });
   }
@@ -1014,11 +1062,13 @@
             save();
             closeTopLayer();
           }
-          if (a === 'del' && confirm(`‘${w.w}’를 오답노트에서 지울까요?`)) {
-            delete DB.wrong[word];
-            save();
-            closeTopLayer();
-          }
+          if (a === 'del')
+            ask(`‘${w.w}’를 오답노트에서 지울까요?`, '지우기', true).then((ok) => {
+              if (!ok) return;
+              delete DB.wrong[word];
+              save();
+              closeTopLayer();
+            });
         };
       },
     });
@@ -1052,42 +1102,82 @@
   bindSet('#setShowPy', 'showPy');
   bindSet('#setShowKo', 'showKo');
 
-  $('#backupExport').onclick = () => {
-    const blob = new Blob([JSON.stringify({ app: 'hsk-study', v: 1, at: new Date().toISOString(), data: DB })], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `hsk-단어장-백업-${today()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      URL.revokeObjectURL(a.href);
-      a.remove();
-    }, 1000);
-  };
-  $('#backupImport').onclick = () => $('#backupFile').click();
-  $('#backupFile').onchange = async (e) => {
-    const f = e.target.files[0];
-    e.target.value = '';
-    if (!f) return;
+  const backupText = () => JSON.stringify({ app: 'hsk-study', v: 1, at: new Date().toISOString(), data: DB });
+  async function restoreFrom(text) {
     try {
-      const j = JSON.parse(await f.text());
+      const j = JSON.parse(text);
       const d = j && j.app === 'hsk-study' ? j.data : null;
-      if (!d || typeof d !== 'object' || !d.set) throw new Error('이 앱의 백업 파일이 아닙니다');
-      if (!confirm('지금 기록을 백업 파일 내용으로 바꿀까요?')) return;
+      if (!d || typeof d !== 'object' || !d.set) throw new Error('이 앱의 백업 내용이 아닙니다');
+      if (!(await ask('지금 기록을 백업 내용으로 바꿀까요?', '바꾸기'))) return false;
       DB = d;
       for (const k of Object.keys(DEFAULTS)) if (DB[k] == null) DB[k] = structuredClone(DEFAULTS[k]);
       DB.set = { ...DEFAULTS.set, ...DB.set };
-      localStorage.setItem(KEY, JSON.stringify(DB));
+      save();
       applyTheme();
       renderSettings();
       updateBadge();
       toast('백업을 불러왔습니다');
+      return true;
     } catch (err) {
       toast('불러오기 실패: ' + err.message);
+      return false;
     }
+  }
+  $('#backupExport').onclick = () =>
+    openLayer({
+      title: '백업',
+      render: (L) => {
+        L.body.innerHTML = `<p class="muted small">아래 글을 통째로 복사해서 메모 앱 등에 보관하세요. 나중에 ‘백업 불러오기’에 붙여 넣으면 기록이 돌아옵니다.</p>
+          <textarea id="backupOut" class="memo-box" style="min-height:180px;font-size:12px" readonly></textarea>
+          <div class="actions"><button class="primary" data-act="copy">복사하기</button>${IN_FRAME ? '' : '<button data-act="file">파일로 저장</button>'}</div>`;
+        const ta = $('textarea', L.body);
+        ta.value = backupText();
+        L.body.onclick = async (e) => {
+          const b = e.target.closest('[data-act]');
+          if (!b) return;
+          if (b.dataset.act === 'copy') {
+            try {
+              await navigator.clipboard.writeText(ta.value);
+              toast('복사했습니다');
+            } catch {
+              ta.focus();
+              ta.select();
+              toast('글이 선택됐어요. 길게 눌러 복사하세요');
+            }
+          }
+          if (b.dataset.act === 'file') {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([ta.value], { type: 'application/json' }));
+            a.download = `hsk-단어장-백업-${today()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => (URL.revokeObjectURL(a.href), a.remove()), 1000);
+          }
+        };
+      },
+    });
+  $('#backupImport').onclick = () =>
+    openLayer({
+      title: '백업 불러오기',
+      render: (L) => {
+        L.body.innerHTML = `<p class="muted small">복사해 둔 백업 글을 붙여 넣거나, 백업 파일을 고르세요.</p>
+          <textarea id="backupIn" class="memo-box" style="min-height:180px;font-size:12px" placeholder="여기에 붙여 넣기"></textarea>
+          <div class="actions"><button class="primary" data-act="load">불러오기</button><button data-act="file">파일 고르기</button></div>`;
+        L.body.onclick = async (e) => {
+          const b = e.target.closest('[data-act]');
+          if (!b) return;
+          if (b.dataset.act === 'file') $('#backupFile').click();
+          if (b.dataset.act === 'load' && (await restoreFrom($('textarea', L.body).value))) closeTopLayer();
+        };
+      },
+    });
+  $('#backupFile').onchange = async (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (f && (await restoreFrom(await f.text())) && stack.length) closeTopLayer();
   };
-  $('#resetAll').onclick = () => {
-    if (!confirm('외운 단어, 별표, 오답노트, 문제 기록을 모두 지울까요? 되돌릴 수 없습니다.')) return;
+  $('#resetAll').onclick = async () => {
+    if (!(await ask('외운 단어, 별표, 오답노트, 문제 기록을 모두 지울까요? 되돌릴 수 없습니다.', '모두 지우기', true))) return;
     const keepSet = DB.set;
     DB = structuredClone(DEFAULTS);
     DB.set = keepSet;
@@ -1107,13 +1197,16 @@
       return;
     }
     for (const w of WORDS) BY.set(w.w, w);
-    history.replaceState({ layer: 0 }, '', location.hash || '#words');
-    showTab((location.hash || '#words').slice(1));
+    if (IN_FRAME) showTab('words');
+    else {
+      history.replaceState({ layer: 0 }, '', location.hash || '#words');
+      showTab((location.hash || '#words').slice(1));
+    }
     updateBadge();
   }
   boot();
 
-  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  if (!IN_FRAME && 'serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 })();
