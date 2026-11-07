@@ -58,7 +58,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-08-0003'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-08-0024'; // tools/bump.js 가 sw.js 와 함께 올림
 
   /* ---------------- 저장 ---------------- */
   const KEY = 'hsk-study-v1';
@@ -871,12 +871,15 @@
     let results = [];
     let writer = null;
     let answered = false;
+    let retryRound = false; // 틀린 문제 다시 풀기 중인지
+    const firstCount = qs.length;
     openLayer({
       title: label || '문제',
       cls: 'quiz-layer',
       onClose: () => writer && writer.cancelQuiz && writer.cancelQuiz(),
       render: (L) => {
-        const restart = (list) => {
+        const restart = (list, isRetry = false) => {
+          retryRound = isRetry;
           i = 0;
           results = [];
           qs = list;
@@ -899,7 +902,7 @@
           const solved = results.filter((r) => r.solved).length;
           const pct = n ? ok / n : 0;
           const C = 2 * Math.PI * 52;
-          const msg = ok === n ? '전부 맞혔어요' : pct >= 0.8 ? '잘했어요' : pct >= 0.5 ? '조금만 더' : '틀린 단어부터 다시 봐요';
+          const msg = retryRound ? (ok === n ? '틀린 문제를 모두 맞혔어요' : '틀린 문제 다시 풀기 끝') : ok === n ? '전부 맞혔어요' : pct >= 0.8 ? '잘했어요' : pct >= 0.5 ? '조금만 더' : '틀린 단어부터 다시 봐요';
           const uniq = [...new Map(wrongs.map((r) => [r.w.w, r.w])).values()];
           L.body.innerHTML = `<div class="qz">
             <div class="qz-prompt result">
@@ -911,10 +914,15 @@
               <div class="result-stats"><span>정답 <b>${ok}</b></span><span>오답 <b>${wrongs.length}</b></span>${solved ? `<span>오답 해결 <b>${solved}</b></span>` : ''}</div>
               ${uniq.length ? `<div class="wrong-chips" aria-label="틀린 단어">${uniq.map((w) => `<button class="zh" data-w="${esc(w.w)}">${esc(w.w)}</button>`).join('')}</div><div class="muted small">틀린 단어는 오답노트에 담겼어요 · 누르면 단어 보기</div>` : ''}
             </div>
-            <div class="qz-bottom">
-              ${wrongs.length ? `<button class="primary big-btn" data-act="retryWrong">틀린 ${wrongs.length}문제 다시 풀기</button>` : ''}
-              ${regen ? `<button class="${wrongs.length ? '' : 'primary '}big-btn" data-act="more">새 문제 ${qs.length}개 더 풀기</button>` : ''}
-              <div class="row2"><button data-act="notes">${ic('notes')} 오답노트</button><button data-act="home">${ic('home')} 홈으로</button></div>
+            <div class="qz-bottom">${
+              retryRound
+                ? // 틀린 문제까지 다시 푼 뒤: 다음 문제(같은 설정, 새 단어) / 홈으로
+                  `${regen ? `<button class="primary big-btn" data-act="more">다음 문제 ${ic('chevronRight')}</button>` : ''}
+              <button class="big-btn" data-act="home">${ic('home')} 홈으로</button>`
+                : `${wrongs.length ? `<button class="primary big-btn" data-act="retryWrong">틀린 ${wrongs.length}문제 다시 풀기</button>` : ''}
+              ${regen ? `<button class="${wrongs.length ? '' : 'primary '}big-btn" data-act="more">다음 문제 ${firstCount}개 ${ic('chevronRight')}</button>` : ''}
+              <div class="row2"><button data-act="notes">${ic('notes')} 오답노트</button><button data-act="home">${ic('home')} 홈으로</button></div>`
+            }
             </div></div>`;
           L.body.onclick = (e) => {
             const chip = e.target.closest('[data-w]');
@@ -922,7 +930,7 @@
             const b = e.target.closest('[data-act]');
             if (!b) return;
             const a = b.dataset.act;
-            if (a === 'retryWrong') restart(shuffle(wrongs.map(remake)));
+            if (a === 'retryWrong') restart(shuffle(wrongs.map(remake)), true);
             if (a === 'more') restart(regen());
             if (a === 'notes' || a === 'home') {
               closeTopLayer();

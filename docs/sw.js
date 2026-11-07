@@ -1,7 +1,7 @@
 // 오프라인용 캐시
 // - 앱 파일(html/js/css/단어 데이터): 항상 인터넷에서 새로 받아 보여주고(브라우저 캐시도 건너뜀), 인터넷이 안 될 때만 저장해 둔 것을 보여줌
 // - 획순 데이터: 한 번 받은 묶음은 저장해 두고 재사용
-const VERSION = '2026-11-08-0003';
+const VERSION = '2026-11-08-0024';
 const APP = 'hsk-app-' + VERSION;
 const STROKES = 'hsk-strokes-v2';
 const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'lib/hanzi-writer.min.js', 'data/words.json', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png'];

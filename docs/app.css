@@ -391,3 +391,5 @@ body:has(.layer.has-dock) .toast { bottom: calc(108px + env(safe-area-inset-bott
 .qz-actions .mini.known-on { color: var(--known); background: var(--known-soft); border-color: var(--known); }
 .qz-actions .mini.pop .i { animation: pop .28s ease-out; }
 @media (prefers-reduced-motion: reduce) { .qz-actions .mini.pop .i { animation: none; } }
+
+.big-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
