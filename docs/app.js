@@ -52,12 +52,13 @@
     home: '<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>',
     cards: '<rect x="4" y="7" width="12" height="13" rx="2.5"/><path d="M8 4h9.5A2.5 2.5 0 0 1 20 6.5V16"/>',
     square: '<rect x="4.5" y="4.5" width="15" height="15" rx="3.5"/>',
-    checkSquare: '<rect x="4.5" y="4.5" width="15" height="15" rx="3.5" fill="currentColor"/><path d="M8.5 12.2l2.5 2.5 4.6-5" stroke="var(--bg)" stroke-width="2.2"/>',
+    circle: '<circle cx="12" cy="12" r="8"/>',
+    circleCheck: '<circle cx="12" cy="12" r="8.5" fill="currentColor"/><path d="M8.3 12.3l2.6 2.6 4.8-5.2" stroke="var(--panel)" stroke-width="2.2"/>',
   };
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-07-2349'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-07-2357'; // tools/bump.js 가 sw.js 와 함께 올림
 
   /* ---------------- 저장 ---------------- */
   const KEY = 'hsk-study-v1';
@@ -482,9 +483,9 @@
               .join('')}</div>
             <button class="big" data-act="writeAll">${ic('write')} ‘${esc(w.w)}’ 전체 쓰기</button>` : ''}
             <div class="dock" role="toolbar" aria-label="단어 표시">
-              <button class="dock-btn ${DB.star[w.w] ? 'on' : ''}" data-act="star" aria-pressed="${!!DB.star[w.w]}" aria-label="별표" title="별표">${ic(DB.star[w.w] ? 'starFill' : 'star')}</button>
+              <button class="dock-btn ${DB.star[w.w] ? 'star-on' : ''}" data-act="star" aria-pressed="${!!DB.star[w.w]}" aria-label="별표" title="별표">${ic(DB.star[w.w] ? 'starFill' : 'star')}</button>
               <button class="dock-btn" data-act="speak" aria-label="발음 듣기" title="발음 듣기">${ic('sound')}</button>
-              <button class="dock-btn ${s === 2 ? 'on' : ''}" data-act="known" aria-pressed="${s === 2}" aria-label="외웠어요" title="외웠어요">${ic(s === 2 ? 'checkSquare' : 'square')}</button>
+              <button class="dock-btn ${s === 2 ? 'known-on' : ''}" data-act="known" aria-pressed="${s === 2}" aria-label="외운 단어" title="외운 단어">${ic(s === 2 ? 'circleCheck' : 'circle')}</button>
             </div>
           `;
         };
@@ -499,14 +500,14 @@
             else DB.star[w.w] = Date.now();
             save();
             draw();
-            toast(DB.star[w.w] ? '별표 했어요' : '별표를 뺐어요');
+            $('.dock [data-act=star]', L.body).classList.add('pop');
           }
           if (a === 'known') {
             if (DB.st[w.w] === 2) delete DB.st[w.w];
             else DB.st[w.w] = 2;
             save();
             draw();
-            toast(DB.st[w.w] === 2 ? '외운 단어로 표시했어요' : '외운 단어에서 뺐어요');
+            $('.dock [data-act=known]', L.body).classList.add('pop');
           }
           if (a === 'write') openWriting(w, [...w.w].filter(isHan).indexOf(b.dataset.c));
           if (a === 'writeAll') openWriting(w, 0);
@@ -976,7 +977,7 @@
             <div class="qz-fb"></div>
             <div class="qz-bottom">
               <div class="opts ${zhOpts ? 'grid2' : ''}">${q.opts.map((o, k) => `<button data-k="${k}" class="${zhOpts ? 'zh zh-opt' : ''}">${label(o)}</button>`).join('')}</div>
-              <div class="qz-actions"><button class="ghost" data-act="idk">모르겠어요</button></div>
+              <div class="qz-actions">${q.type === 'meaning' || q.type === 'listen' ? `<button class="replay" data-act="speakQ" aria-label="다시 듣기" title="다시 듣기">${ic('sound')}</button>` : ''}<button class="ghost" data-act="idk">모르겠어요</button></div>
             </div></div>`;
           if (q.type === 'listen' || (DB.set.autoSpeak && q.type !== 'word' && q.type !== 'pinyin')) setTimeout(() => speak(w.w), 150);
         };
