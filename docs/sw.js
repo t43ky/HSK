@@ -1,5 +1,5 @@
 // 오프라인용 캐시: 앱 파일은 캐시로 먼저 보여주고 뒤에서 새로 받아 둠, 획순 데이터는 한 번 본 글자부터 캐시
-const APP = 'hsk-app-v1';
+const APP = 'hsk-app-v2';
 const STROKES = 'hsk-strokes-v1';
 const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'lib/hanzi-writer.min.js', 'data/words.json', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png'];
 

@@ -31,6 +31,28 @@
     }
   })();
 
+
+  /* ---------------- 아이콘 (선 아이콘, 글자색을 따름: 라이트 검정 / 다크 흰색) ---------------- */
+  const ICON_PATHS = {
+    book: '<path d="M12 6.5C10.5 5.2 8.3 4.5 4 4.5v14c4.3 0 6.5.7 8 2 1.5-1.3 3.7-2 8-2v-14c-4.3 0-6.5.7-8 2z"/><path d="M12 6.5v14"/>',
+    pencil: '<path d="M15.2 4.8l4 4L8.5 19.5 4 20l.5-4.5z"/><path d="M13 7l4 4"/>',
+    notes: '<rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M9.8 9.8l4.4 4.4M14.2 9.8l-4.4 4.4"/>',
+    sliders: '<path d="M4 7.5h9M17 7.5h3M4 16.5h3M11 16.5h9"/><circle cx="15" cy="7.5" r="2"/><circle cx="9" cy="16.5" r="2"/>',
+    theme: '<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/>',
+    sound: '<path d="M4.5 9.5h3l4.5-4v13l-4.5-4h-3z"/><path d="M15.5 9.5a3.5 3.5 0 0 1 0 5M18 7a7 7 0 0 1 0 10"/>',
+    play: '<path d="M8 5.5l10.5 6.5L8 18.5z"/>',
+    redo: '<path d="M5 12a7 7 0 1 0 2-4.9L5 9"/><path d="M5 4.5V9h4.5"/>',
+    write: '<path d="M15.2 4.8l4 4L8.5 19.5 4 20l.5-4.5z"/><path d="M13 20h7"/>',
+    star: '<path d="M12 4l2.4 5 5.4.7-4 3.8 1 5.4L12 16.3 7.2 18.9l1-5.4-4-3.8 5.4-.7z"/>',
+    starFill: '<path d="M12 4l2.4 5 5.4.7-4 3.8 1 5.4L12 16.3 7.2 18.9l1-5.4-4-3.8 5.4-.7z" fill="currentColor"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    x: '<path d="M7 7l10 10M17 7L7 17"/>',
+    chevronLeft: '<path d="M14.5 6l-6 6 6 6"/>',
+    chevronRight: '<path d="M9.5 6l6 6-6 6"/>',
+  };
+  const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
+  document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
+
   /* ---------------- 저장 ---------------- */
   const KEY = 'hsk-study-v1';
   const DEFAULTS = {
@@ -147,7 +169,7 @@
   function openLayer({ title, render, onClose, right }) {
     const el = document.createElement('div');
     el.className = 'layer';
-    el.innerHTML = `<div class="layer-head"><button class="ghost back">‹ 닫기</button><div class="title">${esc(title)}</div><div class="right">${right || '<span style="display:inline-block;min-width:64px"></span>'}</div></div><div class="layer-body"></div>`;
+    el.innerHTML = `<div class="layer-head"><button class="ghost back">${ic('chevronLeft')} 닫기</button><div class="title">${esc(title)}</div><div class="right">${right || '<span style="display:inline-block;min-width:64px"></span>'}</div></div><div class="layer-body"></div>`;
     $('#layers').appendChild(el);
     document.body.style.overflow = 'hidden';
     const L = { el, body: $('.layer-body', el), onClose, setTitle: (t) => ($('.title', el).textContent = t) };
@@ -287,8 +309,8 @@
       <span class="dot s${s}" title="${s === 2 ? '외움' : s === 1 ? '학습 중' : '새 단어'}"></span>
       <span class="w zh">${esc(w.w)}</span>
       <span class="info">${DB.set.showPy ? `<div class="py">${esc(w.p)}</div>` : ''}${DB.set.showKo ? `<div class="ko${w.k ? '' : ' en'}">${esc(ko)}</div>` : ''}</span>
-      ${DB.star[w.w] ? '<span class="star">★</span>' : ''}
-      ${DB.wrong[w.w] && !DB.wrong[w.w].ok ? `<span class="cnt">✗${DB.wrong[w.w].c}</span>` : ''}
+      ${DB.star[w.w] ? `<span class="star">${ic('starFill')}</span>` : ''}
+      ${DB.wrong[w.w] && !DB.wrong[w.w].ok ? `<span class="cnt">${ic('x')}${DB.wrong[w.w].c}</span>` : ''}
     </li>`;
   }
 
@@ -340,13 +362,13 @@
           L.body.innerHTML = `
             <div class="hero">
               <div class="big-w zh">${esc(w.w)}</div>
-              <div class="big-py">${esc(w.p)} <button class="ghost speak" data-act="speak" aria-label="발음 듣기">🔊</button></div>
+              <div class="big-py">${esc(w.p)} <button class="ghost speak icon-btn" data-act="speak" aria-label="발음 듣기">${ic('sound')}</button></div>
               <div class="big-ko">${esc(w.k || '')}</div>
               ${!w.k && w.e ? `<div class="sub">${esc(w.e)}</div>` : ''}
             </div>
             <div class="actions" style="justify-content:center">
-              <button data-act="star">${DB.star[w.w] ? '★ 별표 해제' : '☆ 별표'}</button>
-              <button data-act="known" class="${s === 2 ? 'primary' : ''}">${s === 2 ? '✓ 외움' : '외웠어요'}</button>
+              <button data-act="star">${DB.star[w.w] ? ic('starFill') + ' 별표 해제' : ic('star') + ' 별표'}</button>
+              <button data-act="known" class="${s === 2 ? 'primary' : ''}">${s === 2 ? ic('check') + ' 외움' : '외웠어요'}</button>
             </div>
             <dl class="kv">
               ${w.t ? `<dt>번체</dt><dd class="zh">${esc(w.t)}</dd>` : ''}
@@ -360,7 +382,7 @@
             <div class="char-row">${chars
               .map((c) => `<button class="char-btn" data-act="write" data-c="${esc(c)}"><span class="c zh">${esc(c)}</span><span class="h">${esc(CHAR_HANJA(c))}</span></button>`)
               .join('')}</div>
-            <button class="big" data-act="writeAll">✍️ ‘${esc(w.w)}’ 전체 쓰기</button>` : ''}
+            <button class="big" data-act="writeAll">${ic('write')} ‘${esc(w.w)}’ 전체 쓰기</button>` : ''}
           `;
         };
         draw();
@@ -429,7 +451,7 @@
               </div>
               <div class="tap">탭해서 뜻 보기</div>
             </div>
-            <div class="actions" style="justify-content:center"><button class="ghost" data-act="speak">🔊 발음</button><button class="ghost" data-act="detail">자세히</button></div>
+            <div class="actions" style="justify-content:center"><button class="ghost" data-act="speak">${ic('sound')} 발음</button><button class="ghost" data-act="detail">자세히</button></div>
             <div class="fc-btns"><button class="no" data-act="no">몰라요</button><button class="yes" data-act="yes">알아요</button></div>`;
           if (DB.set.autoSpeak) speak(w.w);
         };
@@ -543,9 +565,9 @@
             <button data-act="mode" data-m="free">보지 않고 쓰기</button>
           </div>
           <div class="write-tools" style="margin-top:8px">
-            <button data-act="anim">▶ 획순 보기</button>
-            <button data-act="retry">↺ 다시</button>
-            <button data-act="speak">🔊</button>
+            <button data-act="anim">${ic('play')} 획순 보기</button>
+            <button data-act="retry">${ic('redo')} 다시</button>
+            <button data-act="speak" class="icon-btn" aria-label="발음 듣기">${ic('sound')}</button>
           </div></div>`;
         const status = (t, cls) => {
           const s = $('.write-status', L.body);
@@ -572,7 +594,7 @@
             onCorrectStroke: (d) => status(`${d.strokeNum + 1} / ${d.strokeNum + 1 + d.strokesRemaining} 획${mistakes ? ` · 틀린 획 ${mistakes}개` : ''}`),
             onComplete: (d) => {
               const m = d.totalMistakes;
-              status(m === 0 ? '완벽해요! 🎉' : `완성 · 틀린 획 ${m}개`, m === 0 ? 'ok' : 'bad');
+              status(m === 0 ? '완벽해요!' : `완성 · 틀린 획 ${m}개`, m === 0 ? 'ok' : 'bad');
               if (m >= 3) addWrong(w, 'write', `쓰기 ${chars[idx]} (틀린 획 ${m})`);
               if (idx < chars.length - 1) setTimeout(() => { if (writer && !document.contains(L.el)) return; idx++; start(); }, 1200);
             },
@@ -749,8 +771,8 @@
           const wrongs = results.filter((r) => !r.ok);
           const solved = results.filter((r) => r.solved).length;
           L.body.innerHTML = `
-            <div class="result-score"><b>${ok} / ${results.length}</b><div class="muted">${ok === results.length ? '전부 맞혔어요! 🎉' : `틀린 ${wrongs.length}개는 오답노트에 담겼어요`}</div>
-            ${solved ? `<div style="color:var(--ok);margin-top:6px">오답 ${solved}개 해결 ✓</div>` : ''}</div>
+            <div class="result-score"><b>${ok} / ${results.length}</b><div class="muted">${ok === results.length ? '전부 맞혔어요!' : `틀린 ${wrongs.length}개는 오답노트에 담겼어요`}</div>
+            ${solved ? `<div style="color:var(--ok);margin-top:6px">오답 ${solved}개 해결</div>` : ''}</div>
             <ul class="result-list">${results
               .map((r) => `<li data-w="${esc(r.w.w)}"><span class="mark ${r.ok ? 'o' : 'x'}">${r.ok ? 'O' : 'X'}</span><span class="w zh">${esc(r.w.w)}</span><span class="info"><div class="small" style="color:var(--accent)">${esc(r.w.p)}</div><div class="small">${esc(meaning(r.w))}</div></span><span class="tag">${TYPE_NAME[r.type]}</span></li>`)
               .join('')}</ul>
@@ -792,12 +814,12 @@
         const feedback = (q, r) => {
           const fb = document.createElement('div');
           fb.className = 'feedback ' + (r.ok ? 'ok' : 'bad');
-          fb.innerHTML = `<b>${r.ok ? '정답!' : '오답'}</b>${r.solved ? ' · 오답노트에서 해결 ✓' : ''}
+          fb.innerHTML = `<b>${r.ok ? '정답!' : '오답'}</b>${r.solved ? ' · 오답노트에서 해결' : ''}
             <div class="ans"><span class="zh" style="font-size:20px">${esc(q.w.w)}</span> <span style="color:var(--accent)">${esc(q.w.p)}</span> · ${esc(meaning(q.w))}</div>`;
           L.body.appendChild(fb);
           const nr = document.createElement('div');
           nr.className = 'next-row';
-          nr.innerHTML = `<button data-act="speakAns">🔊</button><button data-act="detail">단어 보기</button><button class="primary" data-act="next">${i + 1 >= qs.length ? '결과 보기' : '다음 ›'}</button>`;
+          nr.innerHTML = `<button data-act="speakAns" class="icon-btn" aria-label="발음 듣기">${ic('sound')}</button><button data-act="detail">단어 보기</button><button class="primary" data-act="next">${i + 1 >= qs.length ? '결과 보기' : '다음 ' + ic('chevronRight')}</button>`;
           L.body.appendChild(nr);
           $('[data-act=next]', nr).focus({ preventScroll: true });
           nr.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -816,7 +838,7 @@
           if (q.type === 'meaning') prompt = `<div class="big-w zh">${esc(w.w)}</div><div class="muted">이 단어의 뜻은?</div>`;
           if (q.type === 'word') prompt = `<div class="big-ko">${esc(meaning(w))}</div><div class="muted" style="margin-top:6px">알맞은 한자는?</div>`;
           if (q.type === 'pinyin') prompt = `<div class="big-w zh">${esc(w.w)}</div><div class="muted">알맞은 병음은?</div>`;
-          if (q.type === 'listen') prompt = `<button class="listen" data-act="speakQ" aria-label="다시 듣기">🔊</button><div class="muted" style="margin-top:8px">듣고 알맞은 단어를 고르세요</div>`;
+          if (q.type === 'listen') prompt = `<button class="listen" data-act="speakQ" aria-label="다시 듣기">${ic('sound')}</button><div class="muted" style="margin-top:8px">듣고 알맞은 단어를 고르세요</div>`;
           const label = (o) => (q.type === 'meaning' ? esc(meaning(o)) : q.type === 'pinyin' ? esc(o.p) : esc(o.w));
           L.body.innerHTML = `${head}<div class="q-prompt">${prompt}</div>
             <div class="opts">${q.opts.map((o, k) => `<button data-k="${k}" class="${q.type === 'word' || q.type === 'listen' ? 'zh zh-opt' : ''}">${label(o)}</button>`).join('')}</div>
@@ -831,7 +853,7 @@
           let worst = 0;
           let total = 0;
           L.body.innerHTML = `${head}
-            <div class="q-prompt" style="min-height:0;margin-bottom:8px"><div class="big-ko">${esc(meaning(w))}</div><div style="color:var(--accent);margin-top:4px">${esc(w.p)} <button class="ghost" data-act="speakQ">🔊</button></div></div>
+            <div class="q-prompt" style="min-height:0;margin-bottom:8px"><div class="big-ko">${esc(meaning(w))}</div><div style="color:var(--accent);margin-top:4px">${esc(w.p)} <button class="ghost icon-btn" data-act="speakQ" aria-label="발음 듣기">${ic('sound')}</button></div></div>
             <div class="write-wrap"><div class="write-chars"></div><div class="pad"></div><div class="write-status muted"></div>
             <div class="write-tools"><button class="ghost" data-act="idk">모르겠어요 (정답 보기)</button></div></div>`;
           const status = (t, c) => {
@@ -969,11 +991,11 @@
                 <div class="meta">${fmtDate(n.t)} 틀림${n.ok ? ` · ${fmtDate(n.done || n.t)} 해결` : n.s ? ` · 연속 정답 ${n.s}/2` : ''}${w.n ? ` · ${levelName('n', w.n)}` : ''}</div>
                 ${n.m ? `<div class="memo">${esc(n.m)}</div>` : ''}
               </span>
-              <span class="cnt ${n.ok ? 'ok' : ''}">${n.ok ? '해결' : '✗' + n.c}</span>
+              <span class="cnt ${n.ok ? 'ok' : ''}">${n.ok ? '해결' : ic('x') + n.c}</span>
             </li>`;
           })
           .join('')
-      : `<li class="empty" style="display:block;cursor:default">${f === 'done' ? '아직 해결한 오답이 없습니다' : '복습할 오답이 없습니다 👍'}</li>`;
+      : `<li class="empty" style="display:block;cursor:default">${f === 'done' ? '아직 해결한 오답이 없습니다' : '복습할 오답이 없습니다'}</li>`;
     updateBadge();
   }
   $('#noteFilter').onclick = (e) => {
@@ -1010,7 +1032,7 @@
       title: '오답 노트',
       render: (L) => {
         L.body.innerHTML = `
-          <div class="hero"><div class="big-w zh">${esc(w.w)}</div><div class="big-py">${esc(w.p)} <button class="ghost speak" data-act="speak">🔊</button></div><div class="big-ko">${esc(meaning(w))}</div>
+          <div class="hero"><div class="big-w zh">${esc(w.w)}</div><div class="big-py">${esc(w.p)} <button class="ghost speak icon-btn" data-act="speak" aria-label="발음 듣기">${ic('sound')}</button></div><div class="big-ko">${esc(meaning(w))}</div>
           ${w.h ? `<div class="sub">한자음 ${esc(w.h)}</div>` : ''}</div>
           <dl class="kv">
             <dt>틀린 횟수</dt><dd>${n.c}번 ${n.ok ? '<span class="cnt ok">해결</span>' : `<span class="muted small">연속 정답 ${n.s || 0}/2</span>`}</dd>
