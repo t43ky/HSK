@@ -3,7 +3,7 @@
   "short_name": "HSK 단어장",
   "description": "HSK 단어장, 문제풀이, 오답노트, 한자 쓰기 연습",
   "lang": "ko",
-  "start_url": "./#words",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f7f7f8",
