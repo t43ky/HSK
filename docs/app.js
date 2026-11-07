@@ -57,6 +57,8 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
+  const APP_VERSION = '2026-11-07-2337'; // tools/bump.js 가 sw.js 와 함께 올림
+
   /* ---------------- 저장 ---------------- */
   const KEY = 'hsk-study-v1';
   const DEFAULTS = {
@@ -1213,6 +1215,7 @@
       return `${levelName('n', lv)} ${Math.round((ws.filter((w) => w.k).length / (ws.length || 1)) * 100)}%`;
     });
     $('#koCoverage').textContent = '한국어 뜻 (HSK 3.0): ' + cov.join(' · ');
+    $('#appVersion').textContent = '버전 ' + APP_VERSION;
   }
   const bindSet = (id, key, conv = (v) => v, after) =>
     ($(id).onchange = (e) => {
@@ -1331,7 +1334,22 @@
   }
   boot();
 
-  if (!IN_FRAME && 'serviceWorker' in navigator && location.protocol === 'https:') {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+  // 업데이트: 앱을 다시 볼 때마다 새 버전을 확인하고, 새 버전이 적용되면 화면을 한 번 새로 고침
+  if (!IN_FRAME && 'serviceWorker' in navigator && window.isSecureContext) {
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloaded || stack.length) return; // 문제 푸는 중에는 새로 고치지 않음
+      reloaded = true;
+      location.reload();
+    });
+    navigator.serviceWorker
+      .register('sw.js', { updateViaCache: 'none' })
+      .then((reg) => {
+        const check = () => reg.update().catch(() => {});
+        document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && check());
+        setInterval(check, 30 * 60 * 1000);
+      })
+      .catch(() => {});
   }
 })();
