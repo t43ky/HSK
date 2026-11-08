@@ -58,7 +58,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-08-0024'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-09-0129'; // tools/bump.js 가 sw.js 와 함께 올림
 
   /* ---------------- 저장 ---------------- */
   const KEY = 'hsk-study-v1';
@@ -77,6 +77,7 @@
   if (!DB || typeof DB !== 'object') DB = {};
   for (const k of Object.keys(DEFAULTS)) if (DB[k] == null) DB[k] = structuredClone(DEFAULTS[k]);
   DB.set = { ...DEFAULTS.set, ...DB.set };
+  if (DB.set.qScope === 'new') DB.set.qScope = 'level'; // 예전 '안 외운 단어' 범위 → 지금의 기본 범위
   let saveT = 0;
   const save = () => {
     clearTimeout(saveT);
@@ -277,9 +278,7 @@
       return startCards(left.length ? left : ws);
     }
     if (g === 'write') {
-      const ws = levelWords().filter(canWrite);
-      const left = ws.filter((w) => DB.st[w.w] !== 2);
-      return startQuiz({ pool: left.length ? left : ws, label: '쓰기 연습', types: ['write'], count: 10 });
+      return startQuiz({ pool: () => levelWords().filter(canWrite).filter((w) => DB.st[w.w] !== 2), label: '쓰기 연습', types: ['write'], count: 10 });
     }
     if (g === 'star') {
       DB.set.filter = 'star';
@@ -448,7 +447,11 @@
     if (li) openWord(li.dataset.w);
   };
   $('#startCards').onclick = () => startCards(listCache.slice());
-  $('#startLevelQuiz').onclick = () => startQuiz({ pool: listCache.slice(), label: '단어장 목록' });
+  $('#startLevelQuiz').onclick = () => {
+    const snap = listCache.slice();
+    const keepKnown = DB.set.filter === 'known'; // '외운 단어' 목록으로 풀 때만 외운 단어 포함
+    startQuiz({ pool: () => (keepKnown ? snap : snap.filter((w) => DB.st[w.w] !== 2)), label: '단어장 목록' });
+  };
 
   /* ---------------- 단어 상세 ---------------- */
   function openWord(word) {
@@ -760,7 +763,8 @@
   const TYPE_NAME = { meaning: '뜻 고르기', word: '한자 고르기', pinyin: '병음 고르기', listen: '듣고 고르기', write: '직접 쓰기' };
   function scopePool(scope) {
     const lv = levelWords();
-    if (scope === 'new') return lv.filter((w) => DB.st[w.w] !== 2);
+    if (scope === 'level' || scope === 'new') return lv.filter((w) => DB.st[w.w] !== 2); // 외운 단어는 빼고
+    if (scope === 'known') return lv.filter((w) => DB.st[w.w] === 2);
     if (scope === 'star') return WORDS.filter((w) => DB.star[w.w]);
     if (scope === 'wrong') return WORDS.filter((w) => DB.wrong[w.w] && !DB.wrong[w.w].ok);
     return lv;
@@ -808,8 +812,10 @@
   };
   $('#quizStart').onclick = () => {
     const s = DB.set;
-    const labels = { level: `HSK ${s.track === 'n' ? '3.0' : '2.0'} ${levelName(s.track, s.level)}`, new: '안 외운 단어', star: '별표', wrong: '오답노트' };
-    startQuiz({ pool: scopePool(s.qScope), label: labels[s.qScope], review: s.qScope === 'wrong' });
+    const lvName = `HSK ${s.track === 'n' ? '3.0' : '2.0'} ${levelName(s.track, s.level)}`;
+    const labels = { level: lvName, known: '외운 단어 복습', star: '별표', wrong: '오답노트' };
+    const scope = s.qScope;
+    startQuiz({ pool: () => scopePool(scope), label: labels[scope] || lvName, review: scope === 'wrong' });
   };
 
   // 보기(오답) 만들기
@@ -853,11 +859,24 @@
     });
   }
 
+  // pool: 단어 배열, 또는 그때그때 범위를 다시 계산하는 함수 (다음 문제를 누를 때 새로 외운 단어를 빼기 위해)
   function startQuiz({ pool, label, review = false, types = DB.set.qTypes, count = DB.set.qCount }) {
-    if (!pool.length) return toast('문제를 낼 단어가 없습니다');
+    const getPool = typeof pool === 'function' ? pool : () => pool;
+    const first = getPool();
+    if (!first.length) return toast('문제를 낼 단어가 없습니다');
     if (!types.length) types = ['meaning'];
-    const n = Math.min(count, pool.length);
-    const regen = () => buildQuestions(pool, types, n);
+    const asked = new Set();
+    const regen = () => {
+      const all = getPool();
+      const n = Math.min(count, all.length);
+      if (!n) return [];
+      // 이번에 아직 안 나온 단어를 먼저
+      const fresh = all.filter((w) => !asked.has(w.w));
+      const src = fresh.length >= n ? fresh : fresh.concat(shuffle(all.filter((w) => asked.has(w.w))).slice(0, n - fresh.length));
+      const qs = buildQuestions(src, types, n);
+      qs.forEach((q) => asked.add(q.w.w));
+      return qs;
+    };
     runQuiz(regen(), label, review, regen);
   }
 
@@ -930,8 +949,16 @@
             const b = e.target.closest('[data-act]');
             if (!b) return;
             const a = b.dataset.act;
-            if (a === 'retryWrong') restart(shuffle(wrongs.map(remake)), true);
-            if (a === 'more') restart(regen());
+            if (a === 'retryWrong') {
+              const left = wrongs.filter((r) => DB.st[r.w.w] !== 2); // 그사이 외웠다고 표시한 단어는 빼고
+              if (!left.length) return toast('틀린 단어를 모두 외운 단어로 표시했어요');
+              restart(shuffle(left.map(remake)), true);
+            }
+            if (a === 'more') {
+              const next = regen();
+              if (!next.length) return toast('이 범위에 남은 단어가 없어요');
+              restart(next);
+            }
             if (a === 'notes' || a === 'home') {
               closeTopLayer();
               setTimeout(() => goTab(a), 0);
