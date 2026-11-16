@@ -67,7 +67,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-17-0350'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-17-0352'; // tools/bump.js 가 sw.js 와 함께 올림
 
   // 화면(HTML)과 앱 파일 버전이 다르면(예전 저장본이 섞이면) 저장본을 비우고 한 번 새로 고침
   (() => {
@@ -673,9 +673,6 @@
       ? listCache.slice(0, listShown).map(wordRow).join('')
       : `<li class="empty" style="display:block;cursor:default">${$('#wordSearch').value.trim() ? '검색 결과가 없습니다' : fav ? '즐겨찾기한 단어가 없습니다<br><span class="small">단어 화면 아래의 별을 누르면 여기에 모입니다</span>' : '해당하는 단어가 없습니다'}</li>`;
     updateMore();
-    $('#startCards').disabled = !listCache.length;
-    $('#startBlank').disabled = !listCache.length;
-    $('#startLevelQuiz').disabled = listCache.length < 4;
     if (keepScroll) window.scrollTo(0, y);
   }
   function updateMore() {
@@ -692,13 +689,6 @@
   $('#wordList').onclick = (e) => {
     const li = e.target.closest('li[data-w]');
     if (li) openWord(li.dataset.w);
-  };
-  $('#startCards').onclick = () => startCards(listCache.slice());
-  $('#startBlank').onclick = () => startBlankTest(listCache.slice());
-  $('#startLevelQuiz').onclick = () => {
-    const snap = listCache.slice();
-    const keepKnown = DB.set.filter === 'known'; // '외운 단어' 목록으로 풀 때만 외운 단어 포함
-    startQuiz({ pool: () => (keepKnown ? snap : snap.filter((w) => DB.st[w.w] !== 2)), label: '단어장 목록' });
   };
 
   /* ---------------- 단어 상세 ---------------- */
