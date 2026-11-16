@@ -597,3 +597,6 @@ button.rb { cursor: pointer; }
 .tiles.one .tile .tile-ic { margin: 0; }
 .tiles.one .tile .tile-t { margin: 0; }
 .tiles.one .tile .tile-s { margin-left: auto; }
+
+.today-card .qmain-btns button[data-go=dueG] { flex-direction: row; justify-content: center; gap: 8px; padding: 12px; }
+.today-card .qmain-btns button[data-go=dueG] b { font-size: 17px; }

@@ -67,7 +67,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-17-0352'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-17-0406'; // tools/bump.js 가 sw.js 와 함께 올림
 
   // 화면(HTML)과 앱 파일 버전이 다르면(예전 저장본이 섞이면) 저장본을 비우고 한 번 새로 고침
   (() => {
@@ -99,7 +99,8 @@
     srs: {}, // 간격 반복 { 단어: { r: {b 단계, due 다음 복습}, w: {...} } } — r 뜻(외움), w 쓰기
     daily: {}, // 날짜별 푼 개수 { '2026-11-16': 23 }
     lc: {}, // 안 외운 단어를 연속으로 맞힌 횟수 (2번이면 자동으로 외움)
-    gram: {}, // 문법 { id: { v 본 시각, ok 맞힌 수, x 틀린 수 } }
+    gram: {}, // 문법 { id: { v 본 시각, ok 맞힌 수, x 틀린 수, l 익힘 } }
+    gsrs: {}, // 문법 복습 일정 { id: { b, due } }
   };
   let DB;
   try {
@@ -430,6 +431,7 @@
     const st = streak();
     const dr = dueWords('r').length;
     const dw = dueWords('w').length;
+    const dg = dueGram().length;
     const pct = Math.min(1, done / goal);
     const C = 2 * Math.PI * 22;
     return `<div class="today-card">
@@ -440,14 +442,17 @@
         <div class="qmain-btns">
           <button class="${dr ? 'primary' : ''}" data-go="dueR" ${dr ? '' : 'disabled'}>오늘 복습 · 단어 <b>${dr}</b></button>
           <button class="${dw ? 'primary' : ''}" data-go="dueW" ${dw ? '' : 'disabled'}>오늘 복습 · 쓰기 <b>${dw}</b></button>
+          ${dg ? `<button class="primary" data-go="dueG" style="grid-column: span 2">오늘 복습 · 문법 <b>${dg}</b></button>` : ''}
         </div>
         ${(() => {
-          if (dr || dw) return '';
+          if (dr || dw || dg) return '';
           // 내일 복습할 개수 (오늘 끝 ~ 내일 끝 사이에 예정된 것)
           const end = dayStart() + 2 * 864e5;
-          const soon = Object.values(DB.srs).reduce((n, e) => n + (e.r && e.r.due < end ? 1 : 0) + (e.w && e.w.due < end ? 1 : 0), 0);
+          const soon =
+            Object.values(DB.srs).reduce((n, e) => n + (e.r && e.r.due < end ? 1 : 0) + (e.w && e.w.due < end ? 1 : 0), 0) +
+            Object.values(DB.gsrs).filter((e) => e.due < end).length;
           return `<div class="muted small today-note">${
-            soon ? `내일 복습할 단어 ${soon}개가 예정돼 있어요.` : '문제에서 2번 연속 맞히거나 외운 단어로 표시한 단어가 다음 날부터 여기에 나와요.'
+            soon ? `내일 복습할 것이 ${soon}개 예정돼 있어요.` : '문제에서 2번 연속 맞히거나 외운 단어로 표시한 단어가 다음 날부터 여기에 나와요.'
           }</div>`;
         })()}
       </div>`;
@@ -469,7 +474,7 @@
       ${levelCard()}
       <div class="tiles">
         ${tile('words', 'book', '단어', `단어장 · 연습 · 문제${favs ? ` · 즐겨찾기 ${favs}` : ''}`)}
-        ${tile('grammar', 'layers', '문법', '문법 목록 · 연습 · 문제')}
+        ${tile('grammar', 'layers', '문법', GRAM.length ? `${gLevel()}급 ${GRAM.filter((g) => g.lv === gLevel() && gLearned(g)).length} / ${GRAM.filter((g) => g.lv === gLevel()).length} 익힘` : '문법 목록 · 연습 · 문제')}
       </div>
       <button class="home-settings" data-go="notes">${ic('notes')}<span>오답노트${wrong ? ` <b class="note-n">${wrong}</b>` : ''}</span>${ic('chevronRight')}</button>
       <button class="home-settings" data-go="settings">${ic('sliders')}<span>설정 · 백업</span>${ic('chevronRight')}</button>`;
@@ -482,6 +487,7 @@
     if (g === 'study') return startStudy();
     if (g === 'dueR') return startDueR();
     if (g === 'dueW') return startDueW();
+    if (g === 'dueG') return startDueG();
     goTab(g);
   };
   function pickLevel() {
@@ -1491,6 +1497,65 @@
     });
   }
 
+
+  /* ---------------- 문법 진행 (순서대로 하나씩 → 익힘 → 복습 일정) ---------------- */
+  const gLearned = (g) => !!(DB.gram[g.id] || {}).l;
+  const nextGram = (lv = gLevel()) => GRAM.find((g) => g.lv === lv && !gLearned(g));
+  const dueGram = () => GRAM.filter((g) => gLearned(g) && DB.gsrs[g.id] && DB.gsrs[g.id].due <= Date.now());
+  function gSchedule(g, ok) {
+    const c = DB.gsrs[g.id];
+    const b = ok ? Math.min((c ? c.b : 0) + 1, IV.length - 1) : 0;
+    DB.gsrs[g.id] = { b, due: dayStart() + IV[b] * 864e5 };
+  }
+  // 문법 한 개 학습: 설명·예문 → 그 문법 문제(빈칸 3 + 어순 1) → 75% 이상이면 익힘
+  function lessonQs(g) {
+    const gaps = shuffle(g.q.slice()).slice(0, 3).map((it) => ({ type: 'gap', g, it }));
+    const ord = g.ex.length ? [{ type: 'order', g, s: g.ex[(Math.random() * g.ex.length) | 0] }] : [];
+    return gaps.concat(ord);
+  }
+  function startGrammarLesson(g) {
+    openGrammar(g.id, true);
+  }
+  function runLessonQuiz(g, after) {
+    runQuiz(lessonQs(g), g.t, false, null, (results) => {
+      setTimeout(() => after && after(), 0);
+      const n = results.length;
+      const ok = results.filter((r) => r.ok).length;
+      if (n && ok / n >= 0.75 && !gLearned(g)) {
+        DB.gram[g.id].l = Date.now();
+        gSchedule(g, true); // 내일부터 복습
+        const nx = nextGram(g.lv) || nextGram(g.lv + 1);
+        save();
+        toast(nx ? `익힘! 다음 문법: ${nx.t}` : '익힘! 이 급수 문법을 모두 익혔어요');
+      } else if (!gLearned(g)) toast('4문제 중 3개 이상 맞히면 익힘이 돼요. 설명을 한 번 더 보고 다시 풀어 보세요');
+    });
+  }
+  // 오늘 문법 복습: 복습할 때가 된 문법마다 빈칸 1개 (모자라면 어순)
+  function startDueG() {
+    const due = dueGram();
+    if (!due.length) return toast('오늘 복습할 문법이 없어요');
+    const qs = shuffle(due)
+      .slice(0, 15)
+      .map((g) => ({ type: 'gap', g, it: g.q[(Math.random() * g.q.length) | 0], rev: true }));
+    runQuiz(qs, '오늘 복습 · 문법', false, null);
+  }
+  function grammarNextCard() {
+    if (!GRAM.length) return '';
+    const lv = gLevel();
+    const list = GRAM.filter((g) => g.lv === lv);
+    const done = list.filter(gLearned).length;
+    const nx = nextGram(lv);
+    const pct = list.length ? Math.round((done / list.length) * 100) : 0;
+    return `<div class="home-level">
+        <button class="hl-main" data-gnext="${nx ? nx.id : ''}">
+          <span class="hl-top"><span>HSK 문법</span><b>${lv}급</b></span>
+          <span class="hl-num"><b>${done}</b> / ${list.length} 익힘 <span>${pct}%</span></span>
+          <span class="pbar"><i style="width:${pct}%"></i></span>
+          <span class="hl-go">${nx ? `다음 문법 · ${esc(nx.t.split(':')[0])}` : lv < 3 ? `${lv + 1}급으로` : '모두 익힘'} ${ic('play')}</span>
+        </button>
+      </div>`;
+  }
+
   /* ---------------- 문법 ---------------- */
   const gLevel = () => DB.set.gLevel || 1;
   const gStat = (g) => DB.gram[g.id] || {};
@@ -1498,21 +1563,32 @@
     const lv = gLevel();
     const lvs = [...new Set(GRAM.map((g) => g.lv))].sort();
     const list = GRAM.filter((g) => g.lv === lv);
-    const done = list.filter((g) => (gStat(g).ok || 0) >= 2).length;
+    const done = list.filter(gLearned).length;
     $('#gramBox').innerHTML = !GRAM.length
       ? '<div class="empty">문법을 불러오는 중…</div>'
       : `
       <div class="chips" id="gramLv">${lvs.map((l) => `<button data-glv="${l}" class="${l === lv ? 'on' : ''}">HSK ${l}급</button>`).join('')}</div>
-      <p class="muted small" style="margin:0">HSK ${lv}급 문법 ${list.length}개 · 익힘 ${done}개 (빈칸 문제를 2번 맞히면 익힘)</p>
+      ${grammarNextCard()}
+      <p class="muted small" style="margin:0">순서대로 설명을 읽고 문제 4개 중 3개 이상 맞히면 익힘 · 익힌 문법은 다음 날부터 오늘 복습에 나와요</p>
       <ul class="gram-list">${list
         .map((g) => {
           const st = gStat(g);
-          const mark = (st.ok || 0) >= 2 ? `<span class="g-done">${ic('circleCheck')}</span>` : st.v ? '<span class="g-seen"></span>' : '';
+          const mark = gLearned(g) ? `<span class="g-done">${ic('circleCheck')}</span>` : st.v ? '<span class="g-seen"></span>' : '';
           return `<li data-gid="${g.id}"><span class="info"><b>${esc(g.t)}</b><span class="zh g-f">${esc(g.f)}</span></span>${mark}${ic('chevronRight')}</li>`;
         })
         .join('')}</ul>`;
   }
   $('#gramBox').onclick = (e) => {
+    const nb = e.target.closest('[data-gnext]');
+    if (nb) {
+      if (nb.dataset.gnext) return startGrammarLesson(GRAM.find((g) => g.id === +nb.dataset.gnext));
+      if (gLevel() < 3) {
+        DB.set.gLevel = gLevel() + 1;
+        save();
+        return renderGrammar();
+      }
+      return;
+    }
     const lvb = e.target.closest('[data-glv]');
     if (lvb) {
       DB.set.gLevel = +lvb.dataset.glv;
@@ -1528,7 +1604,7 @@
     const li = e.target.closest('[data-gid]');
     if (li) openGrammar(+li.dataset.gid);
   };
-  function openGrammar(id) {
+  function openGrammar(id, lesson = false) {
     const g = GRAM.find((x) => x.id === id);
     if (!g) return;
     (DB.gram[g.id] = DB.gram[g.id] || {}).v = Date.now();
@@ -1536,16 +1612,22 @@
     openLayer({
       title: '문법',
       render: (L) => {
-        L.body.innerHTML = `
+        const draw = () => (L.body.innerHTML = `
           <div class="g-head"><span class="tag">HSK ${g.lv}급</span><h2>${esc(g.t)}</h2><div class="g-pattern zh">${esc(g.f)}</div></div>
           <p class="g-desc">${esc(g.d)}</p>
           <h3>예문</h3>
           <div class="ex-list">${g.ex.map((x) => `<div class="ex" data-say="${esc(sentText(x))}">${rubyHTML(x)}<div class="ex-ko">${esc(x.k)}</div></div>`).join('')}</div>
+          ${
+            !gLearned(g)
+              ? `<button class="primary big-btn" style="margin-top:16px" data-act="lesson">${lesson ? '다 읽었어요 · ' : ''}문제 4개 풀고 익히기 ${ic('chevronRight')}</button>`
+              : `<div class="task-box ok" style="margin-top:16px"><b>익힘</b><span>다음 복습: ${DB.gsrs[g.id] ? new Date(DB.gsrs[g.id].due).toLocaleDateString('ko-KR') : '-'}</span></div>`
+          }
           <div class="actions" style="margin-top:16px">
-            <button class="primary" data-act="gap">이 문법 빈칸 문제</button>
+            <button data-act="gap">이 문법 빈칸 문제</button>
             <button data-act="order">예문 어순 맞추기</button>
             <button data-act="pw">${ic('write')} 노트에 3문장 만들기</button>
-          </div>`;
+          </div>`);
+        draw();
         L.body.onclick = (e) => {
           const wb = e.target.closest('[data-w]');
           if (wb) return openWord(wb.dataset.w);
@@ -1553,6 +1635,7 @@
           if (ex) return speak(ex.dataset.say);
           const b = e.target.closest('[data-act]');
           if (!b) return;
+          if (b.dataset.act === 'lesson') return runLessonQuiz(g, draw);
           if (b.dataset.act === 'gap') runQuiz(shuffle(g.q.map((it) => ({ type: 'gap', g, it }))), g.t, false);
           if (b.dataset.act === 'order') runQuiz(shuffle(g.ex.map((x) => ({ type: 'order', g, s: x }))), g.t + ' · 어순', false);
           if (b.dataset.act === 'pw') startPatternWrite(g);
@@ -1676,7 +1759,8 @@
   function renderGramQuiz() {
     const lv = gLevel();
     const list = GRAM.filter((g) => g.lv === lv);
-    const done = list.filter((g) => (gStat(g).ok || 0) >= 2).length;
+    const done = list.filter(gLearned).length;
+    const dg = dueGram().length;
     $('#quizBox').innerHTML = !GRAM.length
       ? '<div class="empty">문법을 불러오는 중…</div>'
       : `
@@ -1687,6 +1771,10 @@
           <button class="primary" data-gq="gap">빈칸 문제</button>
           <button data-gq="order">어순 맞추기</button>
         </div>
+      </div>
+      <div class="qmain">
+        <div class="qmain-head"><span class="tile-ic">${ic('redo')}</span><span><b>오늘 문법 복습</b><span class="muted small">익힌 문법을 1일 → 3일 → 7일 … 간격으로</span></span></div>
+        <div class="qmain-btns"><button class="${dg ? 'primary' : ''}" data-gq="due" ${dg ? '' : 'disabled'}>오늘 복습 <b>${dg}</b></button></div>
       </div>`;
     const h = DB.hist.filter((r) => (r.label || '').startsWith('문법')).slice(0, 8);
     $('#quizHistory').innerHTML = h.length
@@ -1707,6 +1795,7 @@
       return renderGramQuiz();
     }
     const gq = e.target.closest('[data-gq]');
+    if (gq && gq.dataset.gq === 'due') return startDueG();
     if (gq) {
       DB.set.gMode = gq.dataset.gq;
       save();
@@ -1884,7 +1973,7 @@
         };
 
         const finish = () => {
-          if (onFinish) onFinish();
+          if (onFinish) onFinish(results);
           const graded = results.filter((r) => !r.practice);
           const practiced = results.length - graded.length;
           const ok = graded.filter((r) => r.ok).length;
@@ -2040,6 +2129,7 @@
             const st = (DB.gram[q.g.id] = DB.gram[q.g.id] || {});
             if (ok) st.ok = (st.ok || 0) + 1;
             else st.x = (st.x || 0) + 1;
+            if (q.rev) gSchedule(q.g, ok); // 오늘 복습: 맞히면 간격 늘림, 틀리면 처음부터
           }
           tick();
           const r = { type: q.type, ok, q };
@@ -2657,6 +2747,13 @@
         .then((r) => r.json())
         .then((d) => {
           GRAM = d;
+          for (const g of GRAM) {
+            const st = DB.gram[g.id];
+            if (st && !st.l && (st.ok || 0) >= 2) {
+              st.l = Date.now();
+              if (!DB.gsrs[g.id]) gSchedule(g, true);
+            }
+          }
           if (curTab === 'grammar') renderGrammar();
           if (curTab === 'home' && !stack.length) renderHome();
         })
@@ -2676,6 +2773,7 @@
     };
     placeAll('r', WORDS.filter((w) => DB.st[w.w] === 2 && !srsGet(w, 'r')));
     placeAll('w', WORDS.filter((w) => canWriteW(w) && !srsGet(w, 'w')));
+    // (문법) 예전 기록에서 빈칸을 2번 이상 맞힌 문법은 GRAM 을 불러온 뒤 익힘으로 옮김 → grammar fetch 에서 처리
     // 한 번만: 이미 한꺼번에 몰린 첫 복습(1단계)을 하루 최대 개수씩 다시 나눔
     if (!DB.set.srsBalanced) {
       for (const sk of ['r', 'w']) {

@@ -52,6 +52,26 @@ for (const line of fs.readFileSync(path.join(root, 'data-src/grammar.txt'), 'utf
     cur.q.push({ ...s, b: blank, o });
   } else cur.d += (cur.d ? ' ' : '') + line.trim();
 }
+// 추가 빈칸 문제 (= 제목 으로 문법을 고름)
+{
+  let tgt = null;
+  for (const line of fs.readFileSync(path.join(root, 'data-src/grammar-extra.txt'), 'utf8').split('\n')) {
+    if (!line.trim() || line.startsWith('#')) continue;
+    if (line.startsWith('=')) {
+      const t = line.slice(1).trim();
+      tgt = out.find((g) => g.t === t);
+      if (!tgt) throw new Error('문법 제목을 못 찾음: ' + t);
+    } else if (line.startsWith('?')) {
+      const [zh, opts, ko] = line.slice(1).split('|');
+      const m = zh.match(/\[([^\]]+)\]/);
+      const s = sent(zh.replace(/\[([^\]]+)\]/, '$1'), ko);
+      const blank = s.z.indexOf(m[1]);
+      const o = opts.split(',').map((x) => x.trim());
+      if (blank < 0 || !o.includes(m[1])) throw new Error('추가 문제 오류: ' + line);
+      tgt.q.push({ ...s, b: blank, o });
+    }
+  }
+}
 fs.writeFileSync(path.join(root, 'docs/data/grammar.json'), JSON.stringify(out));
 const by = {};
 for (const g of out) by[g.lv] = (by[g.lv] || 0) + 1;
