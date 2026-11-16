@@ -67,7 +67,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-17-0432'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-17-0435'; // tools/bump.js 가 sw.js 와 함께 올림
 
   // 화면(HTML)과 앱 파일 버전이 다르면(예전 저장본이 섞이면) 저장본을 비우고 한 번 새로 고침
   (() => {
@@ -413,17 +413,21 @@
         clearTimeout(t);
         t = setTimeout(() => {
           const i = Math.max(0, Math.min(vals.length - 1, Math.round(wheel.scrollTop / H)));
-          if (document.activeElement === inp && vals[i] !== +inp.value && (+inp.value < min || +inp.value > max)) return mark();
+          // 직접 입력하는 중에는 다이얼이 입력칸을 덮어쓰지 않음
+          if (document.activeElement === inp) return mark();
           cur = vals[i];
           inp.value = cur;
           mark();
         }, 60);
       };
+      // 다이얼을 만지면 입력 중이던 키보드를 닫고 다이얼 값으로
+      wheel.addEventListener('touchstart', () => document.activeElement === inp && inp.blur(), { passive: true });
+      wheel.addEventListener('wheel', () => document.activeElement === inp && inp.blur(), { passive: true });
       inp.oninput = () => {
         const v = Math.round(+inp.value);
         if (!(v >= 1)) return;
         cur = v;
-        if (v >= min && v <= max) scrollTo(v, true);
+        if (v >= min && v <= max) scrollTo(v);
         mark();
       };
       const close = (ok) => {
@@ -438,7 +442,9 @@
         if (!b && e.target !== el) return;
         close(!!b && b.dataset.r === '1');
       };
-      inp.onkeydown = (e) => e.key === 'Enter' && close(true);
+      inp.onkeydown = (e) => {
+        if (e.key === 'Enter') close(true);
+      };
     });
   }
   function refreshCurrent() {
