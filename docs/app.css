@@ -616,3 +616,48 @@ button.rb { cursor: pointer; }
 .dial-item.on { color: var(--fg); font-weight: 700; font-size: 26px; }
 .dial-input { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--muted); font-size: 14px; }
 .dial-input input { width: 90px; text-align: center; font-size: 17px; padding: 6px 8px; border-radius: 8px; }
+
+/* 얇은 박스 (전체 홈·카드) */
+.card { padding: 10px 14px; border-radius: 12px; }
+.row { padding: 6px 0; }
+.today-card { padding: 10px 12px; gap: 8px; border-radius: 14px; }
+.today-top { gap: 10px; }
+.mini-ring { width: 38px; height: 38px; }
+.mini-ring circle { stroke-width: 4; }
+.mini-ring span { font-size: 12px; }
+.mini-ring span .i { width: 16px; height: 16px; }
+.today-txt b { font-size: 15px; }
+.today-txt span { font-size: 12px; }
+.today-card .qmain-btns { gap: 6px; }
+.today-card .qmain-btns button, .today-card .qmain-btns button[data-go=dueG] { flex-direction: row; justify-content: space-between; padding: 8px 12px; border-radius: 10px; font-size: 13px; }
+.today-card .qmain-btns button b, .today-card .qmain-btns button[data-go=dueG] b { font-size: 15px; }
+.home-level { border-radius: 14px; }
+.hl-main { padding: 10px 12px; gap: 5px; border-radius: 14px; }
+.home-level > .hl-change { top: 5px; right: 6px; font-size: 12px; }
+.hl-top { font-size: 12px; }
+.hl-top b { font-size: 18px; }
+.hl-top b small { font-size: 13px; }
+.hl-num { font-size: 12.5px; }
+.hl-num b { font-size: 14px; }
+.home-level .pbar { height: 4px; }
+.hl-go { margin-top: 2px; padding: 5px 12px; font-size: 13px; }
+.tiles { gap: 8px; }
+.tile { min-height: 0; flex-direction: row; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; flex-wrap: wrap; }
+.tile-ic { width: 32px; height: 32px; border-radius: 9px; margin: 0; }
+.tile-ic .i { width: 18px; height: 18px; }
+.tile-t { margin: 0; font-size: 15px; }
+.tile-s { flex-basis: 100%; font-size: 11.5px; }
+.tiles.three .tile { min-height: 0; padding: 10px; }
+.tiles.one .tile { flex-wrap: nowrap; }
+.tiles.one .tile .tile-s { flex-basis: auto; }
+.home-settings { padding: 10px 14px; border-radius: 12px; font-size: 14px; }
+.qmain { padding: 12px; gap: 10px; border-radius: 14px; }
+.qmain-btns button { padding: 10px 8px; border-radius: 10px; }
+.qmain-btns button b { font-size: 17px; }
+.qmain .qmain-btns button { flex-direction: row; justify-content: space-between; padding: 9px 12px; border-radius: 10px; font-size: 13px; }
+.qmain .qmain-btns button b { font-size: 15px; }
+.qmain-head { gap: 10px; }
+.qmain-head .tile-ic { width: 32px; height: 32px; border-radius: 9px; flex: none; }
+.qmain-head .tile-ic .i { width: 18px; height: 18px; }
+.qmain-head b { font-size: 15px; }
+.qmain-head .small { font-size: 11.5px; }

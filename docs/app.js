@@ -67,7 +67,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-17-0435'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-17-0437'; // tools/bump.js 가 sw.js 와 함께 올림
 
   // 화면(HTML)과 앱 파일 버전이 다르면(예전 저장본이 섞이면) 저장본을 비우고 한 번 새로 고침
   (() => {
@@ -532,17 +532,6 @@
           <button class="${dw ? 'primary' : ''}" data-go="dueW" ${dw ? '' : 'disabled'}>오늘 복습 · 쓰기 <b>${dw}</b></button>
           ${dg ? `<button class="primary" data-go="dueG" style="grid-column: span 2">오늘 복습 · 문법 <b>${dg}</b></button>` : ''}
         </div>
-        ${(() => {
-          if (dr || dw || dg) return '';
-          // 내일 복습할 개수 (오늘 끝 ~ 내일 끝 사이에 예정된 것)
-          const end = dayStart() + 2 * 864e5;
-          const soon =
-            Object.values(DB.srs).reduce((n, e) => n + (e.r && e.r.due < end ? 1 : 0) + (e.w && e.w.due < end ? 1 : 0), 0) +
-            Object.values(DB.gsrs).filter((e) => e.due < end).length;
-          return `<div class="muted small today-note">${
-            soon ? `내일 복습할 것이 ${soon}개 예정돼 있어요.` : '문제에서 2번 연속 맞히거나 외운 단어로 표시한 단어가 다음 날부터 여기에 나와요.'
-          }</div>`;
-        })()}
       </div>`;
   }
   const startDueR = () => startQuiz({ pool: () => dueWords('r'), label: '오늘 복습 · 단어', count: 20 });
