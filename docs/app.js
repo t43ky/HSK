@@ -67,7 +67,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-17-0334'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-17-0336'; // tools/bump.js 가 sw.js 와 함께 올림
 
   // 화면(HTML)과 앱 파일 버전이 다르면(예전 저장본이 섞이면) 저장본을 비우고 한 번 새로 고침
   (() => {
@@ -247,6 +247,66 @@
     if (IN_FRAME) popLayer();
     else history.back();
   }
+
+  // 화면 왼쪽 가장자리에서 오른쪽으로 밀면 뒤로 (홈 화면 앱은 Safari 의 뒤로 가기 제스처가 없음)
+  (() => {
+    const EDGE = 30;
+    let g = null;
+    document.addEventListener(
+      'touchstart',
+      (e) => {
+        if (e.touches.length !== 1) return;
+        const t = e.touches[0];
+        if (t.clientX > EDGE) return;
+        if (e.target.closest('.write-box, .modal, input, textarea, select')) return;
+        const layer = stack.length ? stack[stack.length - 1].el : null;
+        if (!layer && curTab === 'home') return;
+        g = { x: t.clientX, y: t.clientY, t: Date.now(), el: layer || $('#main'), layer: !!layer, on: false, dx: 0 };
+      },
+      { passive: true },
+    );
+    document.addEventListener(
+      'touchmove',
+      (e) => {
+        if (!g) return;
+        const t = e.touches[0];
+        const dx = t.clientX - g.x;
+        const dy = t.clientY - g.y;
+        if (!g.on) {
+          if (Math.abs(dy) > 12 && Math.abs(dy) > dx) return (g = null); // 세로 스크롤이면 포기
+          if (dx < 10) return;
+          g.on = true;
+          g.el.style.transition = 'none';
+        }
+        e.preventDefault();
+        g.dx = Math.max(0, dx);
+        g.el.style.transform = `translateX(${g.dx}px)`;
+        g.el.style.boxShadow = '-8px 0 24px rgba(0,0,0,.12)';
+      },
+      { passive: false },
+    );
+    const end = () => {
+      if (!g) return;
+      const { el, dx, on, layer } = g;
+      const fast = dx / Math.max(1, Date.now() - g.t) > 0.5;
+      g = null;
+      if (!on) return;
+      const go = dx > window.innerWidth * 0.33 || (fast && dx > 40);
+      el.style.transition = 'transform .2s ease-out';
+      el.style.transform = go ? 'translateX(100%)' : '';
+      setTimeout(() => {
+        el.style.transition = '';
+        el.style.boxShadow = '';
+        if (go) {
+          if (layer) closeTopLayer();
+          else goTab('home');
+          if (!layer) el.style.transform = '';
+        } else el.style.transform = '';
+      }, 200);
+    };
+    document.addEventListener('touchend', end, { passive: true });
+    document.addEventListener('touchcancel', end, { passive: true });
+  })();
 
   // 페이지 안 확인 창 (confirm 대체)
   function ask(msg, okLabel = '확인', danger = false) {
