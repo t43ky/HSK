@@ -461,3 +461,5 @@ button.rb { cursor: pointer; }
 .wr-mark { color: var(--ok); display: inline-flex; }
 .wr-mark .i { width: 16px; height: 16px; }
 #noteReview[hidden], #noteWrite[hidden] { display: none; }
+
+.qz-actions .mini.write-on { color: var(--ok); background: var(--ok-soft); border-color: var(--ok); }

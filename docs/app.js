@@ -64,7 +64,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-16-2126'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-16-2131'; // tools/bump.js 가 sw.js 와 함께 올림
 
   /* ---------------- 저장 ---------------- */
   const KEY = 'hsk-study-v1';
@@ -1041,7 +1041,7 @@
         </div>
       </div>
       <div class="qmain">
-        <div class="qmain-head"><span class="tile-ic">${ic('brush')}</span><span><b>쓰기 연습</b><span class="muted small">획순 보고 → 안 보고 · 외운 단어부터</span></span></div>
+        <div class="qmain-head"><span class="tile-ic">${ic('brush')}</span><span><b>쓰기 연습</b><span class="muted small">보고 쓰기 · 안 보고 쓰기를 골라서 · 외운 단어부터</span></span></div>
         <div class="qmain-btns">
           <button class="primary" data-go="write" ${wLeft ? '' : 'disabled'}>아직 못 쓰는 단어 <b>${wLeft}</b></button>
           <button data-go="writeReview" ${wOk ? '' : 'disabled'}>쓰기 복습 <b>${wOk}</b></button>
@@ -1073,7 +1073,7 @@
       return startQuiz({ pool, label: '쓰기 연습', types: ['write'], count: 10 });
     }
     if (g === 'writeReview')
-      return startQuiz({ pool: () => levelWords().filter((w) => canWrite(w) && canWriteW(w)), label: '쓰기 복습', types: ['write'], count: 10, guided: false });
+      return startQuiz({ pool: () => levelWords().filter((w) => canWrite(w) && canWriteW(w)), label: '쓰기 복습', types: ['write'], count: 10 });
     if (g === 'sent') return startSentences();
     if (g === 'tr') return startTranslate();
   };
@@ -1141,7 +1141,7 @@
       const qs = buildQuestions(src, types, n);
       qs.forEach((q) => {
         asked.add(q.w.w);
-        if (!guided) q.guided = false;
+        if (q.type === 'write') q.wmode = guided ? DB.set.wMode || 'trace' : 'free';
       });
       return qs;
     };
@@ -1176,6 +1176,7 @@
         const remake = (r) => {
           const q = { w: r.w, type: r.type };
           if (isTr(r.type)) q.s = r.s;
+          else if (r.type === 'write') q.wmode = 'free'; // 틀린 쓰기는 안 보고 다시
           else if (r.type !== 'write') q.opts = shuffle([r.w, ...distractors(r.w, r.type)]);
           return q;
         };
@@ -1194,16 +1195,16 @@
           const solved = results.filter((r) => r.solved).length;
           const pct = n ? ok / n : 1;
           const C = 2 * Math.PI * 52;
-          const msg = !n ? '문장 연습 끝' : retryRound ? (ok === n ? '틀린 문제를 모두 맞혔어요' : '틀린 문제 다시 풀기 끝') : ok === n ? '전부 맞혔어요' : pct >= 0.8 ? '잘했어요' : pct >= 0.5 ? '조금만 더' : '틀린 단어부터 다시 봐요';
+          const msg = !n ? '연습 끝' : retryRound ? (ok === n ? '틀린 문제를 모두 맞혔어요' : '틀린 문제 다시 풀기 끝') : ok === n ? '전부 맞혔어요' : pct >= 0.8 ? '잘했어요' : pct >= 0.5 ? '조금만 더' : '틀린 단어부터 다시 봐요';
           const uniq = [...new Map(wrongs.map((r) => [r.w.w, r.w])).values()];
           L.body.innerHTML = `<div class="qz">
             <div class="qz-prompt result">
               <div class="ring">
                 <svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" class="ring-bg"/><circle cx="60" cy="60" r="52" class="ring-fg" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - pct)}"/></svg>
-                <div class="ring-num">${n ? `<b>${ok}</b><span>/ ${n}</span>` : `<b>${practiced}</b><span>문장</span>`}</div>
+                <div class="ring-num">${n ? `<b>${ok}</b><span>/ ${n}</span>` : `<b>${practiced}</b><span>개</span>`}</div>
               </div>
               <div class="result-msg">${msg}</div>
-              <div class="result-stats">${n ? `<span>정답 <b>${ok}</b></span><span>오답 <b>${wrongs.length}</b></span>` : ''}${solved ? `<span>오답 해결 <b>${solved}</b></span>` : ''}${practiced ? `<span>문장 연습 <b>${practiced}</b></span>` : ''}</div>
+              <div class="result-stats">${n ? `<span>정답 <b>${ok}</b></span><span>오답 <b>${wrongs.length}</b></span>` : ''}${solved ? `<span>오답 해결 <b>${solved}</b></span>` : ''}${practiced ? `<span>연습 <b>${practiced}</b></span>` : ''}</div>
               ${uniq.length ? `<div class="wrong-chips" aria-label="틀린 단어">${uniq.map((w) => `<button class="zh" data-w="${esc(w.w)}">${esc(w.w)}</button>`).join('')}</div><div class="muted small">틀린 단어는 오답노트에 담겼어요 · 누르면 단어 보기</div>` : ''}
             </div>
             <div class="qz-bottom">${
@@ -1258,23 +1259,27 @@
         const feedback = (q, r) => {
           $('.qz', L.body).classList.add('answered');
           const fb = $('.qz-fb', L.body);
-          fb.className = 'qz-fb ' + (r.ok ? 'ok' : 'bad');
-          fb.innerHTML = `<span class="fb-mark">${ic(r.ok ? 'check' : 'x')}</span><span class="fb-t"><b>${r.ok ? '정답' : '오답'}</b>${r.solved ? ' · 오답 해결' : ''}<span class="fb-ans"><span class="zh">${esc(q.w.w)}</span> <span class="py">${esc(q.w.p)}</span> ${esc(meaning(q.w))}</span></span>`;
+          fb.className = 'qz-fb ' + (r.practice ? 'note' : r.ok ? 'ok' : 'bad');
+          fb.innerHTML = `<span class="fb-mark">${ic(r.practice ? 'brush' : r.ok ? 'check' : 'x')}</span><span class="fb-t"><b>${r.practice ? '따라 쓰기 완료' : r.ok ? '정답' : '오답'}</b>${r.solved ? ' · 오답 해결' : ''}<span class="fb-ans"><span class="zh">${esc(q.w.w)}</span> <span class="py">${esc(q.w.p)}</span> ${esc(meaning(q.w))}</span></span>`;
           const mid = $('.qz-mid', L.body);
           if (mid && !mid.innerHTML.trim() && q.type !== 'listen') mid.innerHTML = replayBtn();
-          $('.qz-actions', L.body).innerHTML = `<button data-act="detail">단어 보기</button>${markBtns(q.w)}<button class="primary grow" data-act="next">${i + 1 >= qs.length ? '결과 보기' : '다음 ' + ic('chevronRight')}</button>`;
+          $('.qz-actions', L.body).innerHTML = `<button data-act="detail">단어 보기</button>${markBtns(q.w, q.type)}<button class="primary grow" data-act="next">${i + 1 >= qs.length ? '결과 보기' : '다음 ' + ic('chevronRight')}</button>`;
           $('[data-act=next]', L.body).focus({ preventScroll: true });
         };
 
         const replayBtn = () => `<button class="replay" data-act="speakQ" aria-label="다시 듣기" title="다시 듣기">${ic('sound')}</button>`;
-        const markBtns = (w) =>
+        const markBtns = (w, type) =>
           `<button class="mini ${DB.star[w.w] ? 'star-on' : ''}" data-act="qStar" aria-pressed="${!!DB.star[w.w]}" aria-label="즐겨찾기" title="즐겨찾기">${ic(DB.star[w.w] ? 'starFill' : 'star')}</button>` +
-          `<button class="mini ${DB.st[w.w] === 2 ? 'known-on' : ''}" data-act="qKnown" aria-pressed="${DB.st[w.w] === 2}" aria-label="외운 단어" title="외운 단어">${ic(DB.st[w.w] === 2 ? 'circleCheck' : 'circle')}</button>`;
+          (type === 'write'
+            ? `<button class="mini ${canWriteW(w) ? 'write-on' : ''}" data-act="qBrush" aria-pressed="${canWriteW(w)}" aria-label="쓸 수 있음" title="쓸 수 있음">${ic(canWriteW(w) ? 'brushFill' : 'brush')}</button>`
+            : `<button class="mini ${DB.st[w.w] === 2 ? 'known-on' : ''}" data-act="qKnown" aria-pressed="${DB.st[w.w] === 2}" aria-label="외운 단어" title="외운 단어">${ic(DB.st[w.w] === 2 ? 'circleCheck' : 'circle')}</button>`);
         const head = (q) =>
           `<div class="qz-top"><div class="q-progress"><i style="width:${(i / qs.length) * 100}%"></i></div><div class="q-kind">${
             isTr(q.type)
               ? `<div class="seg sp-mode"><button data-trmode="trzh" class="${q.type === 'trzh' ? 'on' : ''}">작문 한→중</button><button data-trmode="trko" class="${q.type === 'trko' ? 'on' : ''}">번역 중→한</button></div>`
-              : `<span>${TYPE_NAME[q.type]}</span>`
+              : q.type === 'write'
+                ? `<div class="seg sp-mode"><button data-wmode="trace" class="${q.wmode === 'trace' ? 'on' : ''}">보고 쓰기</button><button data-wmode="free" class="${q.wmode !== 'trace' ? 'on' : ''}">안 보고 쓰기</button></div>`
+                : `<span>${TYPE_NAME[q.type]}</span>`
           }<span>${i + 1} / ${qs.length}</span></div></div>`;
 
         const show = () => {
@@ -1358,49 +1363,39 @@
           let ci = 0;
           let worst = 0;
           let total = 0;
-          let phase = q.guided === false ? 'free' : 'trace'; // trace 보고 쓰기 → free 안 보고 쓰기
+          const tr = (q.wmode || 'trace') === 'trace'; // 보고 쓰기(획순 안내, 채점 없음) / 안 보고 쓰기(채점)
           L.body.innerHTML = `<div class="qz">${head(q)}
             <div class="qz-prompt write"><div class="qz-ko">${esc(meaning(w))}</div><div class="qz-py">${esc(w.p)} <button class="ghost icon-btn" data-act="speakQ" aria-label="발음 듣기">${ic('sound')}</button></div></div>
             <div class="write-wrap"><div class="write-chars"></div><div class="pad"></div><div class="write-status muted"></div></div>
             <div class="qz-mid"></div>
             <div class="qz-fb"></div>
-            <div class="qz-bottom"><div class="qz-actions"></div></div></div>`;
-          const setActions = () =>
-            ($('.qz-actions', L.body).innerHTML =
-              phase === 'trace'
-                ? `<button class="grow" data-act="skipTrace">바로 안 보고 쓰기 ${ic('chevronRight')}</button>`
-                : `<button class="ghost" data-act="idk">모르겠어요 (정답 보기)</button>`);
-          q.skipTrace = () => {
-            if (phase !== 'trace') return;
-            phase = 'free';
-            ci = 0;
-            next();
-          };
+            <div class="qz-bottom"><div class="qz-actions">${
+              tr ? `<button class="ghost" data-act="skipQ">건너뛰기</button>` : `<button class="ghost" data-act="idk">모르겠어요 (정답 보기)</button>`
+            }</div></div></div>`;
           const status = (t, c) => {
             const s = $('.write-status', L.body);
             s.textContent = t;
             s.style.color = c === 'bad' ? 'var(--bad)' : c === 'ok' ? 'var(--ok)' : '';
           };
           const drawChars = () =>
-            ($('.write-chars', L.body).innerHTML =
-              `<span class="phase">${phase === 'trace' ? '1단계 보고 쓰기' : '2단계 안 보고 쓰기'}</span>` +
-              chars
-                .map((c, k) =>
-                  phase === 'trace'
-                    ? `<span class="zh ${k < ci ? 'done' : k === ci ? 'cur' : ''}">${esc(c)}</span>`
-                    : `<span class="zh ${k < ci ? 'done' : k === ci ? 'cur blank' : 'blank'}">${k < ci ? esc(c) : '□'}</span>`,
-                )
-                .join(''));
+            ($('.write-chars', L.body).innerHTML = chars
+              .map((c, k) =>
+                tr
+                  ? `<span class="zh ${k < ci ? 'done' : k === ci ? 'cur' : ''}">${esc(c)}</span>`
+                  : `<span class="zh ${k < ci ? 'done' : k === ci ? 'cur blank' : 'blank'}">${k < ci ? esc(c) : '□'}</span>`,
+              )
+              .join(''));
           const next = () => {
             drawChars();
-            setActions();
-            if (phase === 'trace' && ci >= chars.length) {
-              phase = 'free';
-              ci = 0;
-              status('이번엔 보지 않고 써 보세요', 'ok');
-              return setTimeout(next, 700);
-            }
             if (ci >= chars.length) {
+              if (tr) {
+                // 보고 쓰기는 연습: 채점하지 않음
+                answered = true;
+                const r = { w, type: 'write', practice: true };
+                results.push(r);
+                status('다 따라 썼어요', 'ok');
+                return feedback(q, r);
+              }
               const ok = worst < 3;
               const r = record(q, ok, `쓰기 (틀린 획 ${total})`);
               status(ok ? (total ? `완성 · 틀린 획 ${total}개` : '완벽해요!') : `틀린 획이 많아요 (${total}개)`, ok ? 'ok' : 'bad');
@@ -1408,7 +1403,6 @@
               return;
             }
             let m = 0;
-            const tr = phase === 'trace';
             status(tr ? '번호 순서대로, 화살표 방향으로 따라 써 보세요' : `${ci + 1}번째 글자를 쓰세요${chars.length > 1 ? ` (${chars.length}글자)` : ''}`);
             if (writer && writer.cancelQuiz) writer.cancelQuiz();
             writer = makeWriter($('.pad', L.body), {
@@ -1427,13 +1421,13 @@
               onCorrectStroke: (d) => myWriter.guide.set(d.strokeNum + 1),
               onComplete: (d) => {
                 myWriter.guide.hide();
-                if (phase !== (tr ? 'trace' : 'free') || myWriter !== writer) return; // 건너뛰기 등으로 바뀐 경우
+                if (myWriter !== writer) return;
                 if (!tr) {
                   worst = Math.max(worst, d.totalMistakes);
                   total += d.totalMistakes;
                 }
                 ci++;
-                setTimeout(next, 450);
+                setTimeout(() => myWriter === writer && next(), 450);
               },
             });
           };
@@ -1447,6 +1441,15 @@
           const q = qs[i];
           if (!q) return;
           if (b.dataset.w && !b.dataset.act) return openWord(b.dataset.w);
+          if (b.dataset.wmode) {
+            // 보고 쓰기 / 안 보고 쓰기 전환: 지금 문제(답하기 전)부터 끝까지
+            DB.set.wMode = b.dataset.wmode;
+            save();
+            for (let k = answered ? i + 1 : i; k < qs.length; k++) if (qs[k].type === 'write') qs[k].wmode = b.dataset.wmode;
+            if (!answered) return show();
+            $$('[data-wmode]', L.body).forEach((y) => y.classList.toggle('on', y.dataset.wmode === b.dataset.wmode));
+            return;
+          }
           if (b.dataset.trmode) {
             // 작문/번역 전환: 지금 문제(답하기 전)부터 끝까지
             DB.set.trMode = b.dataset.trmode;
@@ -1459,16 +1462,17 @@
           const act = b.dataset.act;
           if (act === 'speakQ' || act === 'speakAns') return speak(q.s ? sentText(q.s) : q.w.w);
           if (act === 'slow') return speak(q.s ? sentText(q.s) : q.w.w, 0.5);
-          if (act === 'qStar' || act === 'qKnown') {
+          if (act === 'qStar' || act === 'qKnown' || act === 'qBrush') {
             const w = q.w;
             if (act === 'qStar') {
               if (DB.star[w.w]) delete DB.star[w.w];
               else DB.star[w.w] = Date.now();
-            } else if (DB.st[w.w] === 2) DB.st[w.w] = 1;
+            } else if (act === 'qBrush') DB.wr[w.w] = canWriteW(w) ? { ok: false, s: 0 } : { ok: true, s: 2 };
+            else if (DB.st[w.w] === 2) DB.st[w.w] = 1;
             else DB.st[w.w] = 2;
             save();
             const tmp = document.createElement('div');
-            tmp.innerHTML = markBtns(w);
+            tmp.innerHTML = markBtns(w, q.type);
             const nb = tmp.querySelector(`[data-act=${act}]`);
             nb.classList.add('pop');
             b.replaceWith(nb);
@@ -1479,7 +1483,10 @@
             i++;
             return show();
           }
-          if (act === 'skipTrace' && q.skipTrace) return q.skipTrace();
+          if (act === 'skipQ') {
+            i++;
+            return show();
+          }
           if (answered) return;
           if (isTr(q.type) && (act === 'trSubmit' || act === 'idk')) {
             if (act === 'idk') $('#trIn', L.body).value = '';
@@ -1657,7 +1664,7 @@
           if (a === 'detail') openWord(w.w);
           if (a === 'write') openWriting(w, 0);
           if (a === 'quiz') {
-            if (isWrite) return runQuiz([{ w, type: 'write', guided: false }], '쓰기 오답: ' + w.w, true);
+            if (isWrite) return runQuiz([{ w, type: 'write', wmode: 'free' }], '쓰기 오답: ' + w.w, true);
             const types = ['meaning', 'word', 'pinyin', 'listen'];
             runQuiz(
               shuffle(types).slice(0, 3).map((type) => {
