@@ -521,3 +521,35 @@ button.rb { cursor: pointer; }
 .rel button .zh { font-size: 20px; }
 .rel button span:last-child { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .tiles.three .tile-s { font-size: 12px; }
+
+/* 문법 */
+.gram-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.gram-list li { display: flex; align-items: center; gap: 10px; padding: 14px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; cursor: pointer; }
+.gram-list .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.gram-list .g-f { color: var(--accent); font-size: 14px; }
+.gram-list > li > .i { color: var(--muted); }
+.g-done { color: var(--known); display: inline-flex; }
+.g-seen { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.g-head { display: grid; gap: 6px; }
+.g-head h2 { margin: 0; }
+.g-head .tag { justify-self: start; margin: 0; }
+.g-pattern { font-size: 22px; padding: 12px 14px; border-radius: 14px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.g-desc { line-height: 1.7; }
+/* 빈칸 */
+.gap-sent { font-size: 30px; line-height: 1.5; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px; }
+.gap-slot { display: inline-block; min-width: 2.2em; border-bottom: 3px solid var(--accent); margin: 0 4px; height: 1.2em; }
+.qz-bottom .opts.grid3 { grid-template-columns: repeat(3, 1fr); }
+.qz-bottom .opts.grid3 button { font-size: 26px; min-height: 68px; text-align: center; }
+/* 어순 */
+.ord-ans { width: 100%; min-height: 72px; border: 2px dashed var(--line); border-radius: 16px; padding: 10px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-items: center; }
+.ord-ans.ok { border-style: solid; border-color: var(--ok); background: var(--ok-soft); }
+.ord-ans.bad { border-style: solid; border-color: var(--bad); background: var(--bad-soft); }
+.ord-hint { color: var(--muted); font-size: 13px; }
+.ord-pool { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.ord-chip { font-size: 22px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 1px 0 var(--line), 0 3px 10px rgba(0,0,0,.06); }
+.ord-chip:disabled { opacity: .25; box-shadow: none; }
+.ord-ans .ord-chip { border-color: var(--accent); }
+.ord-tail { font-size: 22px; }
+.ord-right { width: 100%; }
+
+.ord-pool .ord-chip:disabled { visibility: hidden; }
