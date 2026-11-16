@@ -67,7 +67,22 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-17-0322'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-17-0334'; // tools/bump.js 가 sw.js 와 함께 올림
+
+  // 화면(HTML)과 앱 파일 버전이 다르면(예전 저장본이 섞이면) 저장본을 비우고 한 번 새로 고침
+  (() => {
+    const m = document.querySelector('meta[name=app-version]');
+    if (!m || m.content === APP_VERSION || IN_FRAME) return;
+    let tried = false;
+    try {
+      tried = sessionStorage.getItem('vfix') === m.content;
+      sessionStorage.setItem('vfix', m.content);
+    } catch {}
+    if (tried) return;
+    Promise.resolve(window.caches ? caches.keys().then((ks) => Promise.all(ks.filter((k) => k.startsWith('hsk-app')).map((k) => caches.delete(k)))) : 0)
+      .catch(() => {})
+      .then(() => location.reload());
+  })();
 
   /* ---------------- 저장 ---------------- */
   const KEY = 'hsk-study-v1';

@@ -1,7 +1,7 @@
 // 오프라인용 캐시
 // - 앱 파일(html/js/css/단어 데이터): 항상 인터넷에서 새로 받아 보여주고(브라우저 캐시도 건너뜀), 인터넷이 안 될 때만 저장해 둔 것을 보여줌
 // - 획순 데이터: 한 번 받은 묶음은 저장해 두고 재사용
-const VERSION = '2026-11-17-0322';
+const VERSION = '2026-11-17-0334';
 const APP = 'hsk-app-' + VERSION;
 const STROKES = 'hsk-strokes-v2';
 const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'lib/hanzi-writer.min.js', 'data/words.json', 'data/sentences.json', 'data/grammar.json', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png'];
@@ -43,7 +43,9 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     caches.open(APP).then(async (c) => {
       try {
-        const res = await Promise.race([fetch(e.request, { cache: 'no-cache' }), timeout(5000)]);
+        // 화면(HTML)만 느릴 때 저장본으로, 앱 파일(JS·CSS·데이터)은 끝까지 기다림 (화면과 앱 파일 버전이 엇갈리지 않게)
+        const net = fetch(e.request, { cache: 'no-cache' });
+        const res = e.request.mode === 'navigate' ? await Promise.race([net, timeout(8000)]) : await net;
         if (res.ok) c.put(e.request, res.clone());
         return res;
       } catch {
