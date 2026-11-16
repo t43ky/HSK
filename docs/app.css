@@ -600,3 +600,6 @@ button.rb { cursor: pointer; }
 
 .today-card .qmain-btns button[data-go=dueG] { flex-direction: row; justify-content: center; gap: 8px; padding: 12px; }
 .today-card .qmain-btns button[data-go=dueG] b { font-size: 17px; }
+
+.ord-right { display: grid; gap: 4px; justify-items: center; }
+.ord-ans.bad .ord-chip { text-decoration: line-through; text-decoration-color: var(--bad); }

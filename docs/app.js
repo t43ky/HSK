@@ -67,7 +67,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-17-0418'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-17-0421'; // tools/bump.js 가 sw.js 와 함께 올림
 
   // 화면(HTML)과 앱 파일 버전이 다르면(예전 저장본이 섞이면) 저장본을 비우고 한 번 새로 고침
   (() => {
@@ -2272,7 +2272,10 @@
           const r = recordG(q, ok);
           $$('.ord-chip', L.body).forEach((b) => (b.disabled = true));
           $('.ord-ans', L.body).classList.add(ok ? 'ok' : 'bad');
-          $('.ord-pool', L.body).outerHTML = `<div class="ord-right">${rubyHTML(x)}</div>`;
+          // 내 답과 정답을 구분해서 보여줌
+          $('.ord-ans', L.body).insertAdjacentHTML('beforebegin', `<div class="ans-label">${giveUp ? '' : '내 답'}</div>`);
+          $('.ord-pool', L.body).outerHTML = `<div class="ord-right">${ok ? '' : '<div class="ans-label">정답</div>'}${rubyHTML(x)}</div>`;
+          if (giveUp) $('.ord-ans', L.body).remove();
           gFeedback(q, r, x);
         };
 
