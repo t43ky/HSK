@@ -53,6 +53,7 @@
         <button data-f="all">전체</button>
         <button data-f="new">안 외운 단어</button>
         <button data-f="known">외운 단어</button>
+        <button data-f="canwrite">쓸 수 있는 단어</button>
       </div>
       <div class="actions">
         <button class="primary" id="startCards">카드로 외우기</button>
@@ -71,7 +72,10 @@
 
     <!-- 오답노트 -->
     <section id="tab-notes" data-tab="notes" hidden>
-      <h2>오답노트</h2>
+      <div class="seg wide" id="noteKind">
+        <button data-k="word">단어</button>
+        <button data-k="write">쓰기</button>
+      </div>
       <div class="note-summary" id="noteSummary"></div>
       <div class="actions">
         <button class="primary" id="noteReview">오답 다시 풀기</button>
@@ -89,7 +93,7 @@
         </select>
       </div>
       <ul class="note-list" id="noteList"></ul>
-      <p class="muted small">문제를 틀리면 자동으로 여기에 모입니다. 다시 풀어서 <b>2번 연속</b> 맞히면 ‘해결’로 옮겨집니다.</p>
+      <p class="muted small" id="noteHelp"></p>
     </section>
 
     <!-- 설정 -->

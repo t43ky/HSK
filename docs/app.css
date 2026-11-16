@@ -453,3 +453,11 @@ button.rb { cursor: pointer; }
 .write-chars .phase { width: auto; height: auto; border: 0; background: none; font-size: 12px; font-weight: 700; color: var(--accent); padding: 0 6px 0 0; align-self: center; }
 
 .lv-only[hidden] { display: none !important; }
+
+/* 쓸 수 있음 (붓) */
+.dock { gap: 14px; }
+.dock-btn.write-on { color: var(--ok); background: var(--ok-soft); border-color: var(--ok); }
+@media (hover: hover) { .dock-btn.write-on:hover { color: var(--ok); border-color: var(--ok); } }
+.wr-mark { color: var(--ok); display: inline-flex; }
+.wr-mark .i { width: 16px; height: 16px; }
+#noteReview[hidden], #noteWrite[hidden] { display: none; }

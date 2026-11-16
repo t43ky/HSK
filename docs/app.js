@@ -53,6 +53,8 @@
     cards: '<rect x="4" y="7" width="12" height="13" rx="2.5"/><path d="M8 4h9.5A2.5 2.5 0 0 1 20 6.5V16"/>',
     square: '<rect x="4.5" y="4.5" width="15" height="15" rx="3.5"/>',
     circle: '<circle cx="12" cy="12" r="8"/>',
+    brush: '<path d="M20 4l-8.2 8.2"/><path d="M13.6 10.4l-2-2"/><path d="M10.6 13.4c-1.6-1.4-4-1-4.8 1-.6 1.6-.5 3.4-2.3 4.6 3 .8 6.2.3 7.6-1.6.9-1.3.8-2.9-.5-4z"/>',
+    brushFill: '<path d="M20 4l-8.2 8.2"/><path d="M13.6 10.4l-2-2"/><path d="M10.6 13.4c-1.6-1.4-4-1-4.8 1-.6 1.6-.5 3.4-2.3 4.6 3 .8 6.2.3 7.6-1.6.9-1.3.8-2.9-.5-4z" fill="currentColor"/>',
     keyboard: '<rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.01M10 10h.01M13 10h.01M16 10h.01M8 14h8"/>',
     chat: '<path d="M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-7l-4.5 3.5V16.5H5A1.5 1.5 0 0 1 3.5 15V7A1.5 1.5 0 0 1 5 5.5z"/><path d="M8 10h8M8 13h5"/>',
     snail: '<path d="M3.5 18h12.5a4 4 0 0 0 4-4V9.5"/><circle cx="10.5" cy="12" r="5"/><path d="M10.5 12a1.8 1.8 0 1 0 1.8-1.8"/><path d="M20 9.5l1.2-3M18.4 9.5l-.8-3"/>',
@@ -62,7 +64,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-16-2121'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-16-2126'; // tools/bump.js 가 sw.js 와 함께 올림
 
   /* ---------------- 저장 ---------------- */
   const KEY = 'hsk-study-v1';
@@ -74,6 +76,8 @@
     wrong: {}, // 오답노트: { c 틀린 횟수, s 연속 정답, t 마지막 오답, f 처음, ok 해결, log:[{t,ty,a}], m 메모 }
     hist: [], // 문제 기록 [{t, n, ok, scope}]
     sent: {}, // 예문을 마지막으로 본 시각 { 문장: ts }
+    wr: {}, // 쓰기 상태 { 단어: { ok: 쓸 수 있음, s: 안 보고 쓰기 연속 통과 } } — '외움'과 별개
+    wwrong: {}, // 쓰기 오답노트 (단어 오답노트 DB.wrong 과 별개, 모양은 같음)
   };
   let DB;
   try {
@@ -248,7 +252,7 @@
     const ws = levelWords();
     const known = ws.filter((w) => DB.st[w.w] === 2).length;
     const left = ws.length - known;
-    const wrong = Object.values(DB.wrong).filter((x) => !x.ok).length;
+    const wrong = Object.values(DB.wrong).filter((x) => !x.ok).length + Object.values(DB.wwrong).filter((x) => !x.ok).length;
     const favs = Object.keys(DB.star).length;
     const pct = ws.length ? Math.round((known / ws.length) * 100) : 0;
     const tile = (go, icon, title, sub) =>
@@ -256,7 +260,7 @@
     $('#homeBox').innerHTML = `
       <button class="home-level" data-go="level">
         <span class="hl-top"><span>HSK ${s.track === 'n' ? '3.0' : '2.0'}</span><b>${levelName(s.track, s.level)}</b><span class="hl-change">바꾸기 ${ic('chevronRight')}</span></span>
-        <span class="hl-num"><b>${known}</b> / ${ws.length} 외움 <span>${pct}%</span></span>
+        <span class="hl-num"><b>${known}</b> / ${ws.length} 외움 · 쓰기 ${ws.filter(canWriteW).length} <span>${pct}%</span></span>
         <span class="pbar"><i style="width:${pct}%"></i></span>
       </button>
       <div class="tiles">
@@ -383,6 +387,7 @@
     const f = DB.set.wordView === 'fav' ? 'all' : DB.set.filter;
     if (f === 'new') list = list.filter((w) => DB.st[w.w] !== 2);
     if (f === 'known') list = list.filter((w) => DB.st[w.w] === 2);
+    if (f === 'canwrite') list = list.filter(canWriteW);
     if (f === 'star') list = list.filter((w) => DB.star[w.w]);
     return list;
   }
@@ -395,7 +400,7 @@
     const noKo = ws.filter((w) => !w.k).length;
     const pct = (n) => (ws.length ? (n / ws.length) * 100 : 0);
     $('#levelProgress').innerHTML = `
-      <div class="nums"><span><b>${known}</b> / ${ws.length} 외움 · 학습 중 ${learn}</span><span>오답 ${wrong}</span></div>
+      <div class="nums"><span><b>${known}</b> / ${ws.length} 외움 · 학습 중 ${learn}</span><span>쓰기 ${ws.filter(canWriteW).length} · 오답 ${wrong}</span></div>
       <div class="pbar"><i style="width:${pct(known)}%"></i><i class="learn" style="width:${pct(learn)}%"></i></div>
       ${noKo ? `<div class="muted small" style="margin-top:6px">이 급수는 한국어 뜻을 아직 넣는 중이라 ${noKo === ws.length ? '' : '일부 단어는 '}영어 뜻으로 보입니다.</div>` : ''}`;
   }
@@ -407,6 +412,7 @@
       <span class="dot s${s}" title="${s === 2 ? '외움' : s === 1 ? '학습 중' : '새 단어'}"></span>
       <span class="w zh">${esc(w.w)}</span>
       <span class="info">${DB.set.showPy ? `<div class="py">${esc(w.p)}</div>` : ''}${DB.set.showKo ? `<div class="ko${w.k ? '' : ' en'}">${esc(ko)}</div>` : ''}</span>
+      ${canWriteW(w) ? `<span class="wr-mark" title="쓸 수 있음">${ic('brushFill')}</span>` : ''}
       ${DB.star[w.w] ? `<span class="star">${ic('starFill')}</span>` : ''}
       ${DB.wrong[w.w] && !DB.wrong[w.w].ok ? `<span class="cnt">${ic('x')}${DB.wrong[w.w].c}</span>` : ''}
     </li>`;
@@ -480,6 +486,7 @@
               ${w.c ? `<dt>양사</dt><dd class="zh">${esc([...w.c].join(', '))}</dd>` : ''}
               <dt>급수</dt><dd>${w.n ? `HSK 3.0 ${levelName('n', w.n)}` : ''}${w.n && w.o ? ' · ' : ''}${w.o ? `HSK 2.0 ${w.o}급` : ''}</dd>
               ${note ? `<dt>오답</dt><dd>${note.c}번 틀림 · ${note.ok ? '해결' : '복습 필요'}</dd>` : ''}
+              ${DB.wwrong[w.w] ? `<dt>쓰기 오답</dt><dd>${DB.wwrong[w.w].c}번 틀림 · ${DB.wwrong[w.w].ok ? '해결' : '복습 필요'}</dd>` : ''}
             </dl>
             ${chars.length ? `<h3>한 글자씩 쓰기 연습</h3>
             <div class="char-row">${chars
@@ -490,6 +497,7 @@
               <button class="dock-btn ${DB.star[w.w] ? 'star-on' : ''}" data-act="star" aria-pressed="${!!DB.star[w.w]}" aria-label="즐겨찾기" title="즐겨찾기">${ic(DB.star[w.w] ? 'starFill' : 'star')}</button>
               <button class="dock-btn" data-act="speak" aria-label="발음 듣기" title="발음 듣기">${ic('sound')}</button>
               <button class="dock-btn ${s === 2 ? 'known-on' : ''}" data-act="known" aria-pressed="${s === 2}" aria-label="외운 단어" title="외운 단어">${ic(s === 2 ? 'circleCheck' : 'circle')}</button>
+              ${canWrite(w) ? `<button class="dock-btn ${canWriteW(w) ? 'write-on' : ''}" data-act="wrToggle" aria-pressed="${canWriteW(w)}" aria-label="쓸 수 있음" title="쓸 수 있음">${ic(canWriteW(w) ? 'brushFill' : 'brush')}</button>` : ''}
             </div>
           `;
         };
@@ -512,6 +520,12 @@
             save();
             draw();
             $('.dock [data-act=known]', L.body).classList.add('pop');
+          }
+          if (a === 'wrToggle') {
+            DB.wr[w.w] = canWriteW(w) ? { ok: false, s: 0 } : { ok: true, s: 2 };
+            save();
+            draw();
+            $('.dock [data-act=wrToggle]', L.body).classList.add('pop');
           }
           if (a === 'write') openWriting(w, [...w.w].filter(isHan).indexOf(b.dataset.c));
           if (a === 'writeAll') openWriting(w, 0);
@@ -768,6 +782,7 @@
               writer.guide.hide();
               status(mode === 'trace' ? '잘 따라 썼어요' : m === 0 ? '완벽해요!' : `완성 · 틀린 획 ${m}개`, mode === 'trace' || m === 0 ? 'ok' : 'bad');
               if (mode === 'free' && m >= 3) addWrong(w, 'write', `쓰기 ${chars[idx]} (틀린 획 ${m})`);
+              else if (mode === 'free' && idx === chars.length - 1) writePass(w);
               if (idx < chars.length - 1) setTimeout(() => { if (writer && !document.contains(L.el)) return; idx++; start(); }, 1200);
             },
           });
@@ -798,19 +813,32 @@
   }
 
   /* ---------------- 오답노트 기록 ---------------- */
+  const canWriteW = (w) => !!(DB.wr[w.w] && DB.wr[w.w].ok);
   function addWrong(w, type, answer) {
-    const n = DB.wrong[w.w] || (DB.wrong[w.w] = { c: 0, s: 0, f: Date.now(), log: [] });
+    const book = type === 'write' ? DB.wwrong : DB.wrong;
+    const n = book[w.w] || (book[w.w] = { c: 0, s: 0, f: Date.now(), log: [] });
     n.c++;
     n.s = 0;
     n.ok = false;
     n.t = Date.now();
     n.log.unshift({ t: n.t, ty: type, a: answer || '' });
     n.log = n.log.slice(0, 5);
-    if (DB.st[w.w] === 2) DB.st[w.w] = 1;
+    if (type === 'write') {
+      // 쓰기에서 틀리면 '쓸 수 있음'만 풀림 (뜻을 외운 것과는 별개)
+      DB.wr[w.w] = { ok: false, s: 0 };
+    } else if (DB.st[w.w] === 2) DB.st[w.w] = 1;
     save();
   }
-  function markRight(w) {
-    const n = DB.wrong[w.w];
+  // 안 보고 쓰기를 통과: 2번 연속이면 '쓸 수 있음'
+  function writePass(w) {
+    const r = DB.wr[w.w] || (DB.wr[w.w] = { ok: false, s: 0 });
+    r.s = (r.s || 0) + 1;
+    if (r.s >= 2) r.ok = true;
+    save();
+    return markRight(w, DB.wwrong);
+  }
+  function markRight(w, book = DB.wrong) {
+    const n = book[w.w];
     if (!n || n.ok) return false;
     n.s = (n.s || 0) + 1;
     if (n.s >= 2) {
@@ -994,12 +1022,15 @@
     const left = ws.filter((w) => DB.st[w.w] !== 2).length;
     const known = ws.length - left;
     const pct = ws.length ? Math.round((known / ws.length) * 100) : 0;
+    const wws = ws.filter(canWrite);
+    const wOk = wws.filter(canWriteW).length;
+    const wLeft = wws.length - wOk;
     const tile = (go, icon, title, sub) =>
       `<button class="tile" data-go="${go}"><span class="tile-ic">${ic(icon)}</span><span class="tile-t">${title}</span><span class="tile-s">${sub}</span></button>`;
     $('#quizBox').innerHTML = `
       <button class="home-level" data-go="level">
         <span class="hl-top"><span>HSK ${DB.set.track === 'n' ? '3.0' : '2.0'}</span><b>${levelName(DB.set.track, DB.set.level)}</b><span class="hl-change">바꾸기 ${ic('chevronRight')}</span></span>
-        <span class="hl-num"><b>${known}</b> / ${ws.length} 외움 <span>${pct}%</span></span>
+        <span class="hl-num"><b>${known}</b> / ${ws.length} 외움 · 쓰기 ${ws.filter(canWriteW).length} <span>${pct}%</span></span>
         <span class="pbar"><i style="width:${pct}%"></i></span>
       </button>
       <div class="qmain">
@@ -1009,10 +1040,16 @@
           <button data-go="review" ${known ? '' : 'disabled'}>복습 · 외운 단어 <b>${known}</b></button>
         </div>
       </div>
-      <div class="tiles three">
-        ${tile('write', 'write', '쓰기 연습', '보고 → 안 보고')}
-        ${tile('sent', 'chat', '문장 연습', '쓰기 · 말하기')}
-        ${tile('tr', 'keyboard', '작문 · 번역', '직접 입력')}
+      <div class="qmain">
+        <div class="qmain-head"><span class="tile-ic">${ic('brush')}</span><span><b>쓰기 연습</b><span class="muted small">획순 보고 → 안 보고 · 외운 단어부터</span></span></div>
+        <div class="qmain-btns">
+          <button class="primary" data-go="write" ${wLeft ? '' : 'disabled'}>아직 못 쓰는 단어 <b>${wLeft}</b></button>
+          <button data-go="writeReview" ${wOk ? '' : 'disabled'}>쓰기 복습 <b>${wOk}</b></button>
+        </div>
+      </div>
+      <div class="tiles">
+        ${tile('sent', 'chat', '문장 연습', '노트에 쓰기 · 말하기')}
+        ${tile('tr', 'keyboard', '작문 · 번역', '문장을 직접 입력')}
       </div>`;
     const h = DB.hist.slice(0, 8);
     $('#quizHistory').innerHTML = h.length
@@ -1027,9 +1064,16 @@
     if (g === 'learn') return startQuiz({ pool: () => levelWords().filter((w) => DB.st[w.w] !== 2), label: lvLabel() });
     if (g === 'review') return startQuiz({ pool: () => levelWords().filter((w) => DB.st[w.w] === 2), label: '복습 · ' + lvLabel() });
     if (g === 'write') {
-      const all = () => levelWords().filter(canWrite);
-      return startQuiz({ pool: () => (all().some((w) => DB.st[w.w] !== 2) ? all().filter((w) => DB.st[w.w] !== 2) : all()), label: '쓰기 연습', types: ['write'], count: 10 });
+      // 아직 못 쓰는 단어 중 뜻을 외운 단어부터 (모자라면 나머지도)
+      const pool = () => {
+        const left = levelWords().filter((w) => canWrite(w) && !canWriteW(w));
+        const knownFirst = left.filter((w) => DB.st[w.w] === 2);
+        return knownFirst.length >= 10 ? knownFirst : left;
+      };
+      return startQuiz({ pool, label: '쓰기 연습', types: ['write'], count: 10 });
     }
+    if (g === 'writeReview')
+      return startQuiz({ pool: () => levelWords().filter((w) => canWrite(w) && canWriteW(w)), label: '쓰기 복습', types: ['write'], count: 10, guided: false });
     if (g === 'sent') return startSentences();
     if (g === 'tr') return startTranslate();
   };
@@ -1081,7 +1125,7 @@
   }
 
   // pool: 단어 배열, 또는 그때그때 범위를 다시 계산하는 함수 (다음 문제를 누를 때 새로 외운 단어를 빼기 위해)
-  function startQuiz({ pool, label, review = false, types = MIX, count = 10 }) {
+  function startQuiz({ pool, label, review = false, types = MIX, count = 10, guided = true }) {
     const getPool = typeof pool === 'function' ? pool : () => pool;
     const first = getPool();
     if (!first.length) return toast('문제를 낼 단어가 없습니다');
@@ -1095,7 +1139,10 @@
       const fresh = all.filter((w) => !asked.has(w.w));
       const src = fresh.length >= n ? fresh : fresh.concat(shuffle(all.filter((w) => asked.has(w.w))).slice(0, n - fresh.length));
       const qs = buildQuestions(src, types, n);
-      qs.forEach((q) => asked.add(q.w.w));
+      qs.forEach((q) => {
+        asked.add(q.w.w);
+        if (!guided) q.guided = false;
+      });
       return qs;
     };
     runQuiz(regen(), label, review, regen);
@@ -1195,7 +1242,10 @@
         const record = (q, ok, answer) => {
           answered = true;
           const r = { w: q.w, type: q.type, ok };
-          if (ok) {
+          if (q.type === 'write') {
+            if (ok) r.solved = writePass(q.w);
+            else addWrong(q.w, 'write', answer);
+          } else if (ok) {
             r.solved = markRight(q.w);
             if (!DB.st[q.w.w]) DB.st[q.w.w] = 1;
           } else addWrong(q.w, q.type, answer);
@@ -1482,8 +1532,18 @@
     b.hidden = !n;
     b.textContent = n > 99 ? '99+' : n;
   }
+  const noteBook = () => (DB.set.noteKind === 'write' ? DB.wwrong : DB.wrong);
   function renderNotes() {
-    const all = Object.entries(DB.wrong).map(([w, n]) => ({ w: BY.get(w), n })).filter((x) => x.w);
+    const kind = DB.set.noteKind === 'write' ? 'write' : 'word';
+    $$('#noteKind button').forEach((b) => {
+      b.classList.toggle('on', b.dataset.k === kind);
+      const book = b.dataset.k === 'write' ? DB.wwrong : DB.wrong;
+      const c = Object.values(book).filter((x) => !x.ok).length;
+      b.textContent = (b.dataset.k === 'write' ? '쓰기' : '단어') + (c ? ` ${c}` : '');
+    });
+    $('#noteReview').hidden = kind !== 'word';
+    $('#noteWrite').hidden = kind !== 'write';
+    const all = Object.entries(noteBook()).map(([w, n]) => ({ w: BY.get(w), n })).filter((x) => x.w);
     const open = all.filter((x) => !x.n.ok);
     const done = all.filter((x) => x.n.ok);
     const todayN = all.filter((x) => x.n.t && new Date(x.n.t).toDateString() === new Date().toDateString()).length;
@@ -1498,6 +1558,10 @@
     );
     $('#noteReview').disabled = !open.length;
     $('#noteWrite').disabled = !open.some((x) => canWrite(x.w));
+    $('#noteHelp').innerHTML =
+      kind === 'write'
+        ? '안 보고 쓰기에서 틀린 획이 많았던 단어가 모입니다. <b>쓰기로 다시 풀기</b>에서 <b>2번 연속</b> 통과하면 ‘해결’로 옮겨집니다.'
+        : '단어 문제를 틀리면 자동으로 여기에 모입니다. 다시 풀어서 <b>2번 연속</b> 맞히면 ‘해결’로 옮겨집니다.';
     $('#noteList').innerHTML = list.length
       ? list
           .map(({ w, n }) => {
@@ -1517,6 +1581,13 @@
       : `<li class="empty" style="display:block;cursor:default">${f === 'done' ? '아직 해결한 오답이 없습니다' : '복습할 오답이 없습니다'}</li>`;
     updateBadge();
   }
+  $('#noteKind').onclick = (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    DB.set.noteKind = b.dataset.k;
+    save();
+    renderNotes();
+  }
   $('#noteFilter').onclick = (e) => {
     const b = e.target.closest('button');
     if (!b) return;
@@ -1529,26 +1600,27 @@
     save();
     renderNotes();
   };
-  const openWrongWords = () => Object.keys(DB.wrong).filter((w) => !DB.wrong[w].ok).map((w) => BY.get(w)).filter(Boolean);
+  const openWrongWords = (book = DB.wrong) => Object.keys(book).filter((w) => !book[w].ok).map((w) => BY.get(w)).filter(Boolean);
   $('#noteReview').onclick = () => {
     const pool = openWrongWords();
     // 틀렸던 유형으로 다시 (쓰기 제외), 없으면 기본 유형
     startQuiz({ pool, label: '오답 다시 풀기', review: true, types: ['meaning', 'word', 'pinyin', 'listen'], count: Math.min(20, pool.length) });
   };
   $('#noteWrite').onclick = () => {
-    const pool = openWrongWords().filter(canWrite);
-    startQuiz({ pool, label: '오답 쓰기', review: true, types: ['write'], count: Math.min(10, pool.length) });
+    const pool = openWrongWords(DB.wwrong).filter(canWrite);
+    startQuiz({ pool: () => openWrongWords(DB.wwrong).filter(canWrite), label: '쓰기 오답', review: true, types: ['write'], count: Math.min(10, pool.length), guided: false });
   };
   $('#noteList').onclick = (e) => {
     const li = e.target.closest('li[data-w]');
-    if (li) openNote(li.dataset.w);
+    if (li) openNote(li.dataset.w, DB.set.noteKind === 'write');
   };
-  function openNote(word) {
+  function openNote(word, isWrite = false) {
+    const book = isWrite ? DB.wwrong : DB.wrong;
     const w = BY.get(word);
-    const n = DB.wrong[word];
+    const n = book[word];
     if (!w || !n) return;
     openLayer({
-      title: '오답 노트',
+      title: isWrite ? '쓰기 오답' : '오답 노트',
       render: (L) => {
         L.body.innerHTML = `
           <div class="hero"><div class="big-w zh">${esc(w.w)}</div><div class="big-py">${esc(w.p)} <button class="ghost speak icon-btn" data-act="speak" aria-label="발음 듣기">${ic('sound')}</button></div><div class="big-ko">${esc(meaning(w))}</div>
@@ -1585,7 +1657,8 @@
           if (a === 'detail') openWord(w.w);
           if (a === 'write') openWriting(w, 0);
           if (a === 'quiz') {
-            const types = canWrite(w) ? ['meaning', 'word', 'pinyin', 'listen', 'write'] : ['meaning', 'word', 'pinyin', 'listen'];
+            if (isWrite) return runQuiz([{ w, type: 'write', guided: false }], '쓰기 오답: ' + w.w, true);
+            const types = ['meaning', 'word', 'pinyin', 'listen'];
             runQuiz(
               shuffle(types).slice(0, 3).map((type) => {
                 const q = { w, type };
@@ -1606,7 +1679,7 @@
           if (a === 'del')
             ask(`‘${w.w}’를 오답노트에서 지울까요?`, '지우기', true).then((ok) => {
               if (!ok) return;
-              delete DB.wrong[word];
+              delete book[word];
               save();
               closeTopLayer();
             });
