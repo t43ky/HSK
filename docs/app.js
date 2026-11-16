@@ -67,7 +67,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-17-0338'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-17-0340'; // tools/bump.js 가 sw.js 와 함께 올림
 
   // 화면(HTML)과 앱 파일 버전이 다르면(예전 저장본이 섞이면) 저장본을 비우고 한 번 새로 고침
   (() => {
@@ -1025,9 +1025,25 @@
   const IV = [0, 1, 3, 7, 14, 30, 60, 120]; // 단계별 다음 복습까지 날짜
   const dayStart = (t = Date.now()) => new Date(new Date(t).toDateString()).getTime();
   const srsGet = (w, sk) => (DB.srs[w.w] || {})[sk];
+  // 하루에 복습이 몰리지 않게: 예정일에 이미 '하루 복습 최대' 개수가 차 있으면 뒤로 하루씩 밀어 배치
+  const revCap = () => +DB.set.revCap || 30;
+  function dayLoad(sk, day) {
+    let n = 0;
+    for (const k in DB.srs) {
+      const c = DB.srs[k][sk];
+      if (c && c.due >= day && c.due < day + 864e5) n++;
+    }
+    return n;
+  }
   function srsSet(w, sk, b) {
     const e = DB.srs[w.w] || (DB.srs[w.w] = {});
-    e[sk] = { b, due: dayStart() + IV[b] * 864e5 };
+    delete e[sk];
+    let day = dayStart() + IV[b] * 864e5;
+    if (b > 0) {
+      const spread = Math.max(3, Math.round(IV[b] * 0.5)); // 최대 이만큼까지 늦춤
+      for (let k = 0; k < spread && dayLoad(sk, day) >= revCap(); k++) day += 864e5;
+    }
+    e[sk] = { b, due: day };
   }
   function srsDel(w, sk) {
     if (DB.srs[w.w]) delete DB.srs[w.w][sk];
@@ -2375,6 +2391,7 @@
     const s = DB.set;
     $('#setTheme').value = s.theme;
     $('#setGoal').value = String(s.goal || 20);
+    $('#setRevCap').value = String(s.revCap || 30);
     $('#setRate').value = s.rate;
     $('#setAutoSpeak').checked = !!s.autoSpeak;
     $('#setHint').value = s.hint;
@@ -2395,6 +2412,7 @@
     });
   bindSet('#setTheme', 'theme', undefined, applyTheme);
   bindSet('#setGoal', 'goal', (v) => +v);
+  bindSet('#setRevCap', 'revCap', (v) => +v);
   bindSet('#setRate', 'rate', undefined, () => speak('你好'));
   bindSet('#setAutoSpeak', 'autoSpeak');
   bindSet('#setHint', 'hint');
@@ -2508,10 +2526,27 @@
       return;
     }
     for (const w of WORDS) BY.set(w.w, w);
-    // 예전부터 외움/쓸 수 있음이던 단어는 내일부터 복습 일정에 넣음
-    for (const w of WORDS) {
-      if (DB.st[w.w] === 2 && !srsGet(w, 'r')) srsSet(w, 'r', 1);
-      if (canWriteW(w) && !srsGet(w, 'w')) srsSet(w, 'w', 1);
+    // 예전부터 외움/쓸 수 있음이던 단어는 복습 일정에 넣음 (하루 최대 개수씩 나눠서)
+    const placeAll = (sk, ws) => {
+      let day = dayStart() + 864e5;
+      for (const w of ws) {
+        while (dayLoad(sk, day) >= revCap()) day += 864e5;
+        (DB.srs[w.w] = DB.srs[w.w] || {})[sk] = { b: 1, due: day };
+      }
+    };
+    placeAll('r', WORDS.filter((w) => DB.st[w.w] === 2 && !srsGet(w, 'r')));
+    placeAll('w', WORDS.filter((w) => canWriteW(w) && !srsGet(w, 'w')));
+    // 한 번만: 이미 한꺼번에 몰린 첫 복습(1단계)을 하루 최대 개수씩 다시 나눔
+    if (!DB.set.srsBalanced) {
+      for (const sk of ['r', 'w']) {
+        const first = WORDS.filter((w) => {
+          const c = srsGet(w, sk);
+          return c && c.b <= 1;
+        });
+        for (const w of first) delete DB.srs[w.w][sk];
+        placeAll(sk, first);
+      }
+      DB.set.srsBalanced = 1;
     }
     save();
     if (!IN_FRAME) history.replaceState({ layer: 0 }, '', '#home');
