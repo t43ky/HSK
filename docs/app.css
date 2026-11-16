@@ -463,3 +463,9 @@ button.rb { cursor: pointer; }
 #noteReview[hidden], #noteWrite[hidden] { display: none; }
 
 .qz-actions .mini.write-on { color: var(--ok); background: var(--ok-soft); border-color: var(--ok); }
+
+/* 문장 연습: 한자(병음) 크게, 뜻은 아래 */
+.qz-prompt.sp.copy { justify-content: center; gap: 16px; }
+.qz-prompt.sp.copy .rz, .qz-prompt.sp.copy .rb.punct { font-size: 34px; }
+.qz-prompt.sp.copy .rp { font-size: 14px; }
+.qz-prompt.sp.copy .sp-ko { font-size: 18px; font-weight: 500; color: var(--muted); }

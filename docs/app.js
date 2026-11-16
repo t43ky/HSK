@@ -64,7 +64,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-16-2131'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-16-2157'; // tools/bump.js 가 sw.js 와 함께 올림
 
   /* ---------------- 저장 ---------------- */
   const KEY = 'hsk-study-v1';
@@ -909,12 +909,11 @@
     return { missed, pct: a.length ? Math.round((hit.size / a.length) * 100) : 0, exact: a.join('') === b.join('') };
   }
 
-  // 문장 연습: 한국어를 보고 중국어로 쓰기(노트) / 말하기. 채점 없음
+  // 문장 연습: 한자·병음·뜻을 보고 노트에 따라 써 보기. 채점 없음
   function startSentences() {
     if (!SENTS.length) return toast('예문을 불러오는 중이에요. 잠시 후 다시 눌러 주세요');
     let list = pickSentences(10);
     let i = 0;
-    let shown = false;
     openLayer({
       title: '문장 연습',
       cls: 'quiz-layer',
@@ -923,39 +922,27 @@
           if (i >= list.length) {
             L.body.innerHTML = `<div class="qz"><div class="qz-prompt result">
                 <div class="done-ic">${ic('check')}</div>
-                <div class="result-msg">${list.length}문장 연습 끝</div>
-                <div class="muted small">문장 속 모르는 단어는 단어를 눌러 별표해 두세요</div></div>
+                <div class="result-msg">${list.length}문장 따라 쓰기 끝</div>
+                <div class="muted small">문장 속 모르는 단어는 눌러서 즐겨찾기해 두세요</div></div>
               <div class="qz-bottom"><button class="primary big-btn" data-act="more">다음 ${list.length}문장 ${ic('chevronRight')}</button>
               <button class="big-btn" data-act="home">${ic('home')} 홈으로</button></div></div>`;
             return;
           }
           const x = list[i];
-          const mode = DB.set.spMode || 'write';
-          L.body.innerHTML = `<div class="qz">
-            <div class="qz-top"><div class="q-progress"><i style="width:${(i / list.length) * 100}%"></i></div>
-              <div class="q-kind"><div class="seg sp-mode"><button data-mode="write" class="${mode === 'write' ? 'on' : ''}">쓰기</button><button data-mode="speak" class="${mode === 'speak' ? 'on' : ''}">말하기</button></div><span>${i + 1} / ${list.length}</span></div></div>
-            <div class="qz-prompt sp">
-              <div class="sp-ko">${esc(x.k)}</div>
-              <div class="qz-ask">${mode === 'write' ? '노트에 중국어로 써 보세요' : '중국어로 소리 내어 말해 보세요'}</div>
-              <div class="sp-hint"></div>
-              <div class="sp-answer"></div>
-            </div>
-            <div class="qz-mid"></div>
-            <div class="qz-bottom"><div class="qz-actions">
-              <button class="mini" data-act="hint" aria-label="힌트: 쓰이는 단어" title="힌트">${ic('bulb')}</button>
-              <button class="primary grow" data-act="reveal">정답 보기</button></div></div></div>`;
-          shown = false;
-        };
-        const reveal = () => {
-          const x = list[i];
-          shown = true;
           DB.sent[sid(x)] = Date.now();
           save();
-          $('.sp-hint', L.body).innerHTML = '';
-          $('.sp-answer', L.body).innerHTML = rubyHTML(x);
-          $('.qz-mid', L.body).innerHTML = `<button class="replay" data-act="say" aria-label="듣기" title="듣기">${ic('sound')}</button><button class="replay" data-act="slow" aria-label="느리게 듣기" title="느리게 듣기">${ic('snail')}</button>`;
-          $('.qz-actions', L.body).innerHTML = `<button class="primary grow" data-act="next">${i + 1 >= list.length ? '끝' : '다음 ' + ic('chevronRight')}</button>`;
-          speak(sentText(x));
+          L.body.innerHTML = `<div class="qz">
+            <div class="qz-top"><div class="q-progress"><i style="width:${(i / list.length) * 100}%"></i></div>
+              <div class="q-kind"><span>노트에 따라 쓰기</span><span>${i + 1} / ${list.length}</span></div></div>
+            <div class="qz-prompt sp copy">
+              ${rubyHTML(x)}
+              <div class="sp-ko">${esc(x.k)}</div>
+              <div class="qz-ask">노트에 따라 써 보세요 · 단어를 누르면 획순</div>
+            </div>
+            <div class="qz-mid"><button class="replay" data-act="say" aria-label="듣기" title="듣기">${ic('sound')}</button><button class="replay" data-act="slow" aria-label="느리게 듣기" title="느리게 듣기">${ic('snail')}</button></div>
+            <div class="qz-bottom"><div class="qz-actions">
+              <button class="primary grow" data-act="next">${i + 1 >= list.length ? '다 썼어요' : '다 썼어요 · 다음 ' + ic('chevronRight')}</button></div></div></div>`;
+          if (DB.set.autoSpeak) setTimeout(() => speak(sentText(x)), 150);
         };
         draw();
         L.body.onclick = (e) => {
@@ -963,21 +950,8 @@
           if (wb) return openWord(wb.dataset.w);
           const b = e.target.closest('button');
           if (!b) return;
-          if (b.dataset.mode) {
-            DB.set.spMode = b.dataset.mode;
-            save();
-            if (!shown) return draw();
-            $$('.sp-mode button', L.body).forEach((y) => y.classList.toggle('on', y.dataset.mode === b.dataset.mode));
-            return;
-          }
           const a = b.dataset.act;
           const x = list[i];
-          if (a === 'hint') {
-            const hs = shuffle(x.z.filter((t, k) => x.p[k]).map((t, k) => t));
-            $('.sp-hint', L.body).innerHTML = `<div class="hint-chips">${hs.map((t) => `<span class="zh">${esc(t)}</span>`).join('')}</div>`;
-            b.disabled = true;
-          }
-          if (a === 'reveal') reveal();
           if (a === 'say') speak(sentText(x));
           if (a === 'slow') speak(sentText(x), 0.5);
           if (a === 'next') {
@@ -1048,7 +1022,7 @@
         </div>
       </div>
       <div class="tiles">
-        ${tile('sent', 'chat', '문장 연습', '노트에 쓰기 · 말하기')}
+        ${tile('sent', 'chat', '문장 연습', '보고 노트에 따라 쓰기')}
         ${tile('tr', 'keyboard', '작문 · 번역', '문장을 직접 입력')}
       </div>`;
     const h = DB.hist.slice(0, 8);
