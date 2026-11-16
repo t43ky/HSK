@@ -67,7 +67,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-17-0413'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-17-0415'; // tools/bump.js 가 sw.js 와 함께 올림
 
   // 화면(HTML)과 앱 파일 버전이 다르면(예전 저장본이 섞이면) 저장본을 비우고 한 번 새로 고침
   (() => {
@@ -1651,7 +1651,7 @@
               : `<div class="task-box ok" style="margin-top:16px"><b>익힘</b><span>다음 복습: ${DB.gsrs[g.id] ? new Date(DB.gsrs[g.id].due).toLocaleDateString('ko-KR') : '-'}</span></div>`
           }
           <div class="actions" style="margin-top:16px">
-            <button data-act="gap">이 문법 빈칸 문제</button>
+            <button data-act="mix">이 문법 문제 (헷갈리는 문법과 섞어서)</button>
             <button data-act="order">예문 어순 맞추기</button>
             <button data-act="pw">${ic('write')} 노트에 3문장 만들기</button>
           </div>`);
@@ -1664,7 +1664,7 @@
           const b = e.target.closest('[data-act]');
           if (!b) return;
           if (b.dataset.act === 'lesson') return runLessonQuiz(g, draw);
-          if (b.dataset.act === 'gap') runQuiz(shuffle(g.q.map((it) => ({ type: 'gap', g, it }))), g.t, false);
+          if (b.dataset.act === 'mix') runQuiz(lessonQs(g), g.t, false);
           if (b.dataset.act === 'order') runQuiz(shuffle(g.ex.map((x) => ({ type: 'order', g, s: x }))), g.t + ' · 어순', false);
           if (b.dataset.act === 'pw') startPatternWrite(g);
         };
@@ -1682,12 +1682,12 @@
         .slice(0, 10)
         .map((o) => ({ type: 'order', ...o }));
     }
-    const items = pts.flatMap((g) => g.q.map((it) => ({ g, it })));
-    return items
-      .map((o) => ({ o, k: weight(o.g) }))
+    // 덜 익힌 문법부터, 문법 하나에서 한 문제씩만 (같은 정답이 연달아 나오지 않게)
+    return pts
+      .map((g) => ({ g, k: weight(g) }))
       .sort((a, b) => a.k - b.k)
       .slice(0, 10)
-      .map(({ o }) => ({ type: 'gap', ...o }));
+      .map(({ g }) => ({ type: 'gap', g, it: g.q[(Math.random() * g.q.length) | 0] }));
   }
   function startGrammarQuiz() {
     if (!GRAM.length) return toast('문법을 불러오는 중이에요. 잠시 후 다시 눌러 주세요');
