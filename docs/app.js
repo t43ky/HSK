@@ -67,7 +67,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-17-0406'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-17-0413'; // tools/bump.js 가 sw.js 와 함께 올림
 
   // 화면(HTML)과 앱 파일 버전이 다르면(예전 저장본이 섞이면) 저장본을 비우고 한 번 새로 고침
   (() => {
@@ -1508,10 +1508,36 @@
     DB.gsrs[g.id] = { b, due: dayStart() + IV[b] * 864e5 };
   }
   // 문법 한 개 학습: 설명·예문 → 그 문법 문제(빈칸 3 + 어순 1) → 75% 이상이면 익힘
+  // 헷갈리는 다른 문법의 빈칸 문제 (보기가 겹치는 것: 了/过/着, 的/得/地, 把/被, 不/没 …)
+  // → 배운 문법만 계속 정답이 되면 빈칸 문제가 의미 없어지므로 섞어서 냄
+  function rivalItems(g, n) {
+    const own = new Set(g.q.map((it) => it.z[it.b])); // 이 문법 문제들의 정답
+    const mine = new Set(g.q.flatMap((it) => it.o).filter((o) => !own.has(o))); // 이 문법과 헷갈리는 말 (보기 중 정답이 아닌 것)
+    const others = GRAM.filter((x) => x.id !== g.id && x.lv <= Math.max(g.lv, gLevel()));
+    // 정답이 이 문법의 보기 중 하나인 문제 (예: 了를 배울 때 정답이 过·着인 문제)
+    let cand = others.flatMap((x) => x.q.filter((it) => mine.has(it.z[it.b])).map((it) => ({ g: x, it, learned: gLearned(x) })));
+    if (cand.length < n)
+      cand = cand.concat(others.flatMap((x) => x.q.filter((it) => it.o.filter((o) => mine.has(o)).length >= 2).map((it) => ({ g: x, it, learned: gLearned(x) }))));
+    // 이미 익힌 문법을 먼저, 그다음 나머지
+    const pick = shuffle(cand.filter((c) => c.learned)).concat(shuffle(cand.filter((c) => !c.learned)));
+    const out = [];
+    const used = new Set();
+    for (const c of pick) {
+      if (out.length >= n) break;
+      if (used.has(c.g.id)) continue; // 한 문법에서 하나씩
+      used.add(c.g.id);
+      out.push({ type: 'gap', g: c.g, it: c.it });
+    }
+    return out;
+  }
+  // 문법 학습 문제 5개: 이 문법 빈칸 2 + 헷갈리는 다른 문법 빈칸 2 + 어순 1
   function lessonQs(g) {
-    const gaps = shuffle(g.q.slice()).slice(0, 3).map((it) => ({ type: 'gap', g, it }));
+    const rivals = rivalItems(g, 2);
+    const own = shuffle(g.q.slice())
+      .slice(0, 4 - rivals.length)
+      .map((it) => ({ type: 'gap', g, it }));
     const ord = g.ex.length ? [{ type: 'order', g, s: g.ex[(Math.random() * g.ex.length) | 0] }] : [];
-    return gaps.concat(ord);
+    return shuffle(own.concat(rivals)).concat(ord);
   }
   function startGrammarLesson(g) {
     openGrammar(g.id, true);
@@ -1521,23 +1547,25 @@
       setTimeout(() => after && after(), 0);
       const n = results.length;
       const ok = results.filter((r) => r.ok).length;
-      if (n && ok / n >= 0.75 && !gLearned(g)) {
+      if (n && ok / n >= 0.8 && !gLearned(g)) {
         DB.gram[g.id].l = Date.now();
         gSchedule(g, true); // 내일부터 복습
         const nx = nextGram(g.lv) || nextGram(g.lv + 1);
         save();
         toast(nx ? `익힘! 다음 문법: ${nx.t}` : '익힘! 이 급수 문법을 모두 익혔어요');
-      } else if (!gLearned(g)) toast('4문제 중 3개 이상 맞히면 익힘이 돼요. 설명을 한 번 더 보고 다시 풀어 보세요');
+      } else if (!gLearned(g)) toast('5문제 중 4개 이상 맞히면 익힘이 돼요. 설명을 한 번 더 보고 다시 풀어 보세요');
     });
   }
   // 오늘 문법 복습: 복습할 때가 된 문법마다 빈칸 1개 (모자라면 어순)
   function startDueG() {
     const due = dueGram();
     if (!due.length) return toast('오늘 복습할 문법이 없어요');
-    const qs = shuffle(due)
-      .slice(0, 15)
+    const own = shuffle(due)
+      .slice(0, 12)
       .map((g) => ({ type: 'gap', g, it: g.q[(Math.random() * g.q.length) | 0], rev: true }));
-    runQuiz(qs, '오늘 복습 · 문법', false, null);
+    // 복습할 문법이 적으면 정답이 뻔해지므로, 헷갈리는 문법 문제를 섞음 (이건 일정에 반영하지 않음)
+    const extra = own.length < 6 ? own.flatMap((q) => rivalItems(q.g, 1)).slice(0, 6 - own.length) : [];
+    runQuiz(shuffle(own.concat(extra)), '오늘 복습 · 문법', false, null);
   }
   function grammarNextCard() {
     if (!GRAM.length) return '';
@@ -1569,7 +1597,7 @@
       : `
       <div class="chips" id="gramLv">${lvs.map((l) => `<button data-glv="${l}" class="${l === lv ? 'on' : ''}">HSK ${l}급</button>`).join('')}</div>
       ${grammarNextCard()}
-      <p class="muted small" style="margin:0">순서대로 설명을 읽고 문제 4개 중 3개 이상 맞히면 익힘 · 익힌 문법은 다음 날부터 오늘 복습에 나와요</p>
+      <p class="muted small" style="margin:0">순서대로 설명을 읽고 문제 5개(헷갈리는 문법과 섞어서) 중 4개 이상 맞히면 익힘 · 익힌 문법은 다음 날부터 오늘 복습에 나와요</p>
       <ul class="gram-list">${list
         .map((g) => {
           const st = gStat(g);
@@ -1619,7 +1647,7 @@
           <div class="ex-list">${g.ex.map((x) => `<div class="ex" data-say="${esc(sentText(x))}">${rubyHTML(x)}<div class="ex-ko">${esc(x.k)}</div></div>`).join('')}</div>
           ${
             !gLearned(g)
-              ? `<button class="primary big-btn" style="margin-top:16px" data-act="lesson">${lesson ? '다 읽었어요 · ' : ''}문제 4개 풀고 익히기 ${ic('chevronRight')}</button>`
+              ? `<button class="primary big-btn" style="margin-top:16px" data-act="lesson">${lesson ? '다 읽었어요 · ' : ''}문제 5개 풀고 익히기 ${ic('chevronRight')}</button>`
               : `<div class="task-box ok" style="margin-top:16px"><b>익힘</b><span>다음 복습: ${DB.gsrs[g.id] ? new Date(DB.gsrs[g.id].due).toLocaleDateString('ko-KR') : '-'}</span></div>`
           }
           <div class="actions" style="margin-top:16px">
