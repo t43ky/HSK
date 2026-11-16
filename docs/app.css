@@ -26,7 +26,7 @@ html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--fg);
   font: 15px/1.5 system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
-  padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
 }
 .zh { font-family: "PingFang SC", "Noto Sans CJK SC", "Noto Sans SC", "Microsoft YaHei", "Source Han Sans SC", sans-serif; }
 a { color: var(--accent); }
@@ -422,3 +422,34 @@ button.rb { cursor: pointer; }
 .qz-mid { gap: 12px; }
 .done-ic { width: 88px; height: 88px; border-radius: 50%; display: grid; place-items: center; background: var(--known-soft); color: var(--known); }
 .done-ic .i { width: 44px; height: 44px; stroke-width: 2.2; }
+
+/* 하단 탭 대신 위쪽 '홈' */
+.home-btn { display: inline-flex; align-items: center; gap: 2px; padding: 6px 8px 6px 2px; color: var(--fg); font-weight: 600; }
+.home-btn[hidden] { display: none; }
+.home-btn .i { width: 22px; height: 22px; }
+.seg.wide { display: flex; margin-bottom: 12px; }
+.seg.wide button { flex: 1; padding: 9px; font-size: 14px; }
+/* 문제 화면 */
+.qmain { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 16px; display: grid; gap: 14px; }
+.qmain-head { display: flex; gap: 12px; align-items: center; }
+.qmain-head > span:last-child { display: flex; flex-direction: column; }
+.qmain-head b { font-size: 17px; }
+.qmain-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.qmain-btns button { padding: 14px 8px; border-radius: 14px; font-size: 14px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.qmain-btns button b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.tiles.three { grid-template-columns: repeat(3, 1fr); }
+.tiles.three .tile { min-height: 128px; padding: 14px 12px; }
+.tiles.three .tile-t { font-size: 15px; }
+/* 쓰기 안내: 획순 번호, 이번 획, 방향 */
+.write-box svg.guide { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.g-cur { fill: var(--accent); opacity: .28; }
+.g-dir { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 2 6; opacity: .9; }
+.g-arrowhead { fill: var(--accent); }
+.g-start { fill: var(--accent); opacity: .9; }
+.g-num circle { fill: var(--panel); stroke: var(--muted); stroke-width: 1.2; opacity: .9; }
+.g-num text { font: 700 10px system-ui, sans-serif; fill: var(--muted); text-anchor: middle; }
+.g-num.now circle { fill: var(--accent); stroke: var(--accent); }
+.g-num.now text { fill: var(--on-accent); font-size: 12px; }
+.write-chars .phase { width: auto; height: auto; border: 0; background: none; font-size: 12px; font-weight: 700; color: var(--accent); padding: 0 6px 0 0; align-self: center; }
+
+.lv-only[hidden] { display: none !important; }
