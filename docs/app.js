@@ -53,6 +53,7 @@
     cards: '<rect x="4" y="7" width="12" height="13" rx="2.5"/><path d="M8 4h9.5A2.5 2.5 0 0 1 20 6.5V16"/>',
     square: '<rect x="4.5" y="4.5" width="15" height="15" rx="3.5"/>',
     circle: '<circle cx="12" cy="12" r="8"/>',
+    keyboard: '<rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.01M10 10h.01M13 10h.01M16 10h.01M8 14h8"/>',
     chat: '<path d="M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-7l-4.5 3.5V16.5H5A1.5 1.5 0 0 1 3.5 15V7A1.5 1.5 0 0 1 5 5.5z"/><path d="M8 10h8M8 13h5"/>',
     snail: '<path d="M3.5 18h12.5a4 4 0 0 0 4-4V9.5"/><circle cx="10.5" cy="12" r="5"/><path d="M10.5 12a1.8 1.8 0 1 0 1.8-1.8"/><path d="M20 9.5l1.2-3M18.4 9.5l-.8-3"/>',
     bulb: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V16h5.2v-.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/>',
@@ -61,7 +62,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-16-2057'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-16-2103'; // tools/bump.js 가 sw.js 와 함께 올림
 
   /* ---------------- 저장 ---------------- */
   const KEY = 'hsk-study-v1';
@@ -82,6 +83,7 @@
   for (const k of Object.keys(DEFAULTS)) if (DB[k] == null) DB[k] = structuredClone(DEFAULTS[k]);
   DB.set = { ...DEFAULTS.set, ...DB.set };
   if (DB.set.qScope === 'new') DB.set.qScope = 'level'; // 예전 '안 외운 단어' 범위 → 지금의 기본 범위
+  DB.set.qTypes = (DB.set.qTypes || []).filter((t) => t !== 'trzh' && t !== 'trko'); // 작문·번역은 홈의 별도 메뉴로 옮김
   let saveT = 0;
   const save = () => {
     clearTimeout(saveT);
@@ -268,7 +270,8 @@
         ${tile('notes', 'notes', '오답노트', wrong ? `복습할 오답 ${wrong}개` : '오답 없음')}
         ${tile('write', 'write', '쓰기 연습', '획순대로 직접 쓰기')}
         ${tile('star', 'star', '별표 단어', stars ? `${stars}개` : '아직 없음')}
-        ${tile('sent', 'chat', '문장 연습', '한국어 → 중국어 쓰기 · 말하기')}
+        ${tile('sent', 'chat', '문장 연습', '노트에 쓰기 · 말하기')}
+        ${tile('tr', 'keyboard', '작문 · 번역', '문장을 직접 입력')}
       </div>
       <button class="home-settings" data-go="settings">${ic('sliders')}<span>설정 · 백업</span>${ic('chevronRight')}</button>`;
   }
@@ -287,6 +290,7 @@
       return startQuiz({ pool: () => levelWords().filter(canWrite).filter((w) => DB.st[w.w] !== 2), label: '쓰기 연습', types: ['write'], count: 10 });
     }
     if (g === 'sent') return startSentences();
+    if (g === 'tr') return startTranslate();
     if (g === 'star') {
       DB.set.filter = 'star';
       save();
@@ -913,6 +917,12 @@
     });
   }
 
+  function startTranslate() {
+    if (!SENTS.length) return toast('예문을 불러오는 중이에요. 잠시 후 다시 눌러 주세요');
+    const regen = () => pickSentences(10).map((x) => ({ type: DB.set.trMode || 'trzh', s: x, w: null }));
+    runQuiz(regen(), '작문 · 번역', false, regen);
+  }
+
   /* ---------------- 문제 ---------------- */
   const TYPE_NAME = { meaning: '뜻 고르기', word: '한자 고르기', pinyin: '병음 고르기', listen: '듣고 고르기', write: '직접 쓰기', trzh: '작문 (한→중)', trko: '번역 (중→한)' };
   const isTr = (t) => t === 'trzh' || t === 'trko';
@@ -1104,7 +1114,7 @@
                   `${regen ? `<button class="primary big-btn" data-act="more">다음 문제 ${ic('chevronRight')}</button>` : ''}
               <button class="big-btn" data-act="home">${ic('home')} 홈으로</button>`
                 : `${wrongs.length ? `<button class="primary big-btn" data-act="retryWrong">틀린 ${wrongs.length}문제 다시 풀기</button>` : ''}
-              ${regen ? `<button class="${wrongs.length ? '' : 'primary '}big-btn" data-act="more">다음 문제 ${firstCount}개 ${ic('chevronRight')}</button>` : ''}
+              ${regen ? `<button class="${wrongs.length ? '' : 'primary '}big-btn" data-act="more">${n ? '다음 문제' : '다음'} ${firstCount}${n ? '개' : '문장'} ${ic('chevronRight')}</button>` : ''}
               <div class="row2"><button data-act="notes">${ic('notes')} 오답노트</button><button data-act="home">${ic('home')} 홈으로</button></div>`
             }
             </div></div>`;
@@ -1160,7 +1170,11 @@
           `<button class="mini ${DB.star[w.w] ? 'star-on' : ''}" data-act="qStar" aria-pressed="${!!DB.star[w.w]}" aria-label="별표" title="별표">${ic(DB.star[w.w] ? 'starFill' : 'star')}</button>` +
           `<button class="mini ${DB.st[w.w] === 2 ? 'known-on' : ''}" data-act="qKnown" aria-pressed="${DB.st[w.w] === 2}" aria-label="외운 단어" title="외운 단어">${ic(DB.st[w.w] === 2 ? 'circleCheck' : 'circle')}</button>`;
         const head = (q) =>
-          `<div class="qz-top"><div class="q-progress"><i style="width:${(i / qs.length) * 100}%"></i></div><div class="q-kind"><span>${TYPE_NAME[q.type]}</span><span>${i + 1} / ${qs.length}</span></div></div>`;
+          `<div class="qz-top"><div class="q-progress"><i style="width:${(i / qs.length) * 100}%"></i></div><div class="q-kind">${
+            isTr(q.type)
+              ? `<div class="seg sp-mode"><button data-trmode="trzh" class="${q.type === 'trzh' ? 'on' : ''}">작문 한→중</button><button data-trmode="trko" class="${q.type === 'trko' ? 'on' : ''}">번역 중→한</button></div>`
+              : `<span>${TYPE_NAME[q.type]}</span>`
+          }<span>${i + 1} / ${qs.length}</span></div></div>`;
 
         const show = () => {
           if (writer && writer.cancelQuiz) writer.cancelQuiz();
@@ -1298,6 +1312,15 @@
           const q = qs[i];
           if (!q) return;
           if (b.dataset.w && !b.dataset.act) return openWord(b.dataset.w);
+          if (b.dataset.trmode) {
+            // 작문/번역 전환: 지금 문제(답하기 전)부터 끝까지
+            DB.set.trMode = b.dataset.trmode;
+            save();
+            for (let k = answered ? i + 1 : i; k < qs.length; k++) if (isTr(qs[k].type)) qs[k].type = b.dataset.trmode;
+            if (!answered) return show();
+            $$('[data-trmode]', L.body).forEach((y) => y.classList.toggle('on', y.dataset.trmode === b.dataset.trmode));
+            return;
+          }
           const act = b.dataset.act;
           if (act === 'speakQ' || act === 'speakAns') return speak(q.s ? sentText(q.s) : q.w.w);
           if (act === 'slow') return speak(q.s ? sentText(q.s) : q.w.w, 0.5);
