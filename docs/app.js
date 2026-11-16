@@ -67,7 +67,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-17-0421'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-17-0427'; // tools/bump.js 가 sw.js 와 함께 올림
 
   // 화면(HTML)과 앱 파일 버전이 다르면(예전 저장본이 섞이면) 저장본을 비우고 한 번 새로 고침
   (() => {
@@ -490,24 +490,56 @@
     $('#homeBox').innerHTML = `
       ${todayCard()}
       ${levelCard()}
+      ${grammarNextCard()}
       <div class="tiles">
         ${tile('words', 'book', '단어', `단어장 · 연습 · 문제${favs ? ` · 즐겨찾기 ${favs}` : ''}`)}
-        ${tile('grammar', 'layers', '문법', GRAM.length ? `${gLevel()}급 ${GRAM.filter((g) => g.lv === gLevel() && gLearned(g)).length} / ${GRAM.filter((g) => g.lv === gLevel()).length} 익힘` : '문법 목록 · 연습 · 문제')}
+        ${tile('grammar', 'layers', '문법', '문법 목록 · 연습 · 문제')}
       </div>
       <button class="home-settings" data-go="notes">${ic('notes')}<span>오답노트${wrong ? ` <b class="note-n">${wrong}</b>` : ''}</span>${ic('chevronRight')}</button>
       <button class="home-settings" data-go="settings">${ic('sliders')}<span>설정 · 백업</span>${ic('chevronRight')}</button>`;
   }
   $('#homeBox').onclick = (e) => {
+    const nb = e.target.closest('[data-gnext]');
+    if (nb) {
+      if (nb.dataset.gnext) return startGrammarLesson(GRAM.find((g) => g.id === +nb.dataset.gnext));
+      if (gLevel() < 3) {
+        DB.set.gLevel = gLevel() + 1;
+        save();
+        renderHome();
+      }
+      return;
+    }
     const b = e.target.closest('[data-go]');
     if (!b) return;
     const g = b.dataset.go;
     if (g === 'level') return pickLevel();
+    if (g === 'glevel') return pickGLevel();
     if (g === 'study') return startStudy();
     if (g === 'dueR') return startDueR();
     if (g === 'dueW') return startDueW();
     if (g === 'dueG') return startDueG();
     goTab(g);
   };
+  function pickGLevel() {
+    openLayer({
+      title: '문법 급수 고르기',
+      render: (L) => {
+        const lvs = [...new Set(GRAM.map((g) => g.lv))].sort();
+        L.body.innerHTML = `<div class="chips">${lvs
+          .map((l) => `<button data-glv="${l}" class="${l === gLevel() ? 'on' : ''}">HSK ${l}급 · ${GRAM.filter((g) => g.lv === l && gLearned(g)).length} / ${GRAM.filter((g) => g.lv === l).length}</button>`)
+          .join('')}</div>
+          <p class="muted small">순서대로 설명을 읽고 문제 5개(헷갈리는 문법과 섞어서) 중 4개 이상 맞히면 익힘 · 익힌 문법은 다음 날부터 오늘 복습에 나와요</p>`;
+        L.body.onclick = (e) => {
+          const b = e.target.closest('[data-glv]');
+          if (!b) return;
+          DB.set.gLevel = +b.dataset.glv;
+          save();
+          renderHome();
+          closeLayers(1);
+        };
+      },
+    });
+  }
   function pickLevel() {
     openLayer({
       title: '급수 고르기',
@@ -1617,6 +1649,7 @@
           <span class="pbar"><i style="width:${pct}%"></i></span>
           <span class="hl-go">${nx ? `다음 문법 · ${esc(nx.t.split(':')[0])}` : lv < 3 ? `${lv + 1}급으로` : '모두 익힘'} ${ic('play')}</span>
         </button>
+        <button class="hl-change" data-go="glevel">바꾸기 ${ic('chevronRight')}</button>
       </div>`;
   }
 
@@ -1632,8 +1665,6 @@
       ? '<div class="empty">문법을 불러오는 중…</div>'
       : `
       <div class="chips" id="gramLv">${lvs.map((l) => `<button data-glv="${l}" class="${l === lv ? 'on' : ''}">HSK ${l}급</button>`).join('')}</div>
-      ${grammarNextCard()}
-      <p class="muted small" style="margin:0">순서대로 설명을 읽고 문제 5개(헷갈리는 문법과 섞어서) 중 4개 이상 맞히면 익힘 · 익힌 문법은 다음 날부터 오늘 복습에 나와요</p>
       <ul class="gram-list">${list
         .map((g) => {
           const st = gStat(g);
