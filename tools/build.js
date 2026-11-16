@@ -66,6 +66,7 @@ for (const w of raw) {
   const h = /[一-鿿]/.test(w.simplified) ? hanjaOf(/[^eē é ě è\s]r$/.test(e.p) ? (trad || w.simplified).replace(/(.)[兒儿]$/, '$1') : trad || w.simplified) : '';
   if (h) e.h = h;
   if (cls.length) e.c = cls.join('');
+  if ([...w.simplified].length === 1 && w.radical && w.radical !== w.simplified) e.r = w.radical; // 한 글자 단어의 부수
   e.q = w.frequency;
   words.push(e);
 }

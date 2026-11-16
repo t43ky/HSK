@@ -489,3 +489,35 @@ button.rb { cursor: pointer; }
 .qz-prompt.sp.copy.single .ruby.boxed .rz { font-size: 72px; line-height: 1.15; }
 .qz-prompt.sp.copy.single .rp { font-size: 20px; }
 .qz-prompt.sp.copy.single .sp-ko { font-size: 20px; color: var(--fg); }
+
+/* 오늘 카드 */
+.today-card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px 16px; display: grid; gap: 12px; }
+.today-top { display: flex; align-items: center; gap: 12px; }
+.mini-ring { position: relative; width: 52px; height: 52px; flex: none; }
+.mini-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.mini-ring circle { fill: none; stroke-width: 5; }
+.mini-ring span { position: absolute; inset: 0; display: grid; place-items: center; font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+.mini-ring span .i { width: 20px; height: 20px; color: var(--known); stroke-width: 2.4; }
+.today-txt { display: flex; flex-direction: column; }
+.today-txt b { font-size: 17px; }
+.today-txt span { font-size: 13px; color: var(--muted); }
+.hl-top b small { font-size: 15px; color: var(--muted); font-weight: 600; margin-left: 4px; }
+/* 단원 */
+.unit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px; }
+.unit-grid button { display: flex; flex-direction: column; align-items: center; padding: 8px 4px; border-radius: 12px; }
+.unit-grid button span { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.unit-grid button.on { border-color: var(--fg); }
+.unit-grid button.done b { color: var(--known); }
+.unit-chips button.on { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+/* 단어 화면: 예문, 같은 글자 단어 */
+.ex-list { display: grid; gap: 10px; }
+.ex { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; cursor: pointer; }
+.ex .ruby { justify-content: flex-start; }
+.ex .rz, .ex .rb.punct { font-size: 20px; }
+.ex .rp { font-size: 11px; }
+.ex-ko { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.rel { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.rel button { display: flex; flex-direction: column; align-items: center; padding: 8px 6px; border-radius: 12px; gap: 2px; }
+.rel button .zh { font-size: 20px; }
+.rel button span:last-child { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.tiles.three .tile-s { font-size: 12px; }

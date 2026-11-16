@@ -55,6 +55,7 @@
     circle: '<circle cx="12" cy="12" r="8"/>',
     brush: '<path d="M20 4l-8.2 8.2"/><path d="M13.6 10.4l-2-2"/><path d="M10.6 13.4c-1.6-1.4-4-1-4.8 1-.6 1.6-.5 3.4-2.3 4.6 3 .8 6.2.3 7.6-1.6.9-1.3.8-2.9-.5-4z"/>',
     brushFill: '<path d="M20 4l-8.2 8.2"/><path d="M13.6 10.4l-2-2"/><path d="M10.6 13.4c-1.6-1.4-4-1-4.8 1-.6 1.6-.5 3.4-2.3 4.6 3 .8 6.2.3 7.6-1.6.9-1.3.8-2.9-.5-4z" fill="currentColor"/>',
+    wave: '<path d="M3 15c2.5 0 2.5-6 5-6s2.5 6 5 6 2.5-6 5-6 2.5 6 3 6"/>',
     keyboard: '<rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.01M10 10h.01M13 10h.01M16 10h.01M8 14h8"/>',
     chat: '<path d="M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-7l-4.5 3.5V16.5H5A1.5 1.5 0 0 1 3.5 15V7A1.5 1.5 0 0 1 5 5.5z"/><path d="M8 10h8M8 13h5"/>',
     snail: '<path d="M3.5 18h12.5a4 4 0 0 0 4-4V9.5"/><circle cx="10.5" cy="12" r="5"/><path d="M10.5 12a1.8 1.8 0 1 0 1.8-1.8"/><path d="M20 9.5l1.2-3M18.4 9.5l-.8-3"/>',
@@ -64,12 +65,12 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-16-2245'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-17-0312'; // tools/bump.js 가 sw.js 와 함께 올림
 
   /* ---------------- 저장 ---------------- */
   const KEY = 'hsk-study-v1';
   const DEFAULTS = {
-    set: { track: 'n', level: 1, theme: 'system', rate: '0.8', autoSpeak: true, hint: '3', showPy: true, showKo: true,
+    set: { track: 'n', level: 1, unit: 0, goal: 20, theme: 'system', rate: '0.8', autoSpeak: true, hint: '3', showPy: true, showKo: true,
       filter: 'all', qScope: 'level', qTypes: ['meaning', 'word', 'pinyin'], qCount: 10, noteFilter: 'open', noteSort: 'recent' },
     st: {}, // 단어 상태: 1 학습 중(모름), 2 외움
     star: {},
@@ -78,6 +79,8 @@
     sent: {}, // 예문을 마지막으로 본 시각 { 문장: ts }
     wr: {}, // 쓰기 상태 { 단어: { ok: 쓸 수 있음, s: 안 보고 쓰기 연속 통과 } } — '외움'과 별개
     wwrong: {}, // 쓰기 오답노트 (단어 오답노트 DB.wrong 과 별개, 모양은 같음)
+    srs: {}, // 간격 반복 { 단어: { r: {b 단계, due 다음 복습}, w: {...} } } — r 뜻(외움), w 쓰기
+    daily: {}, // 날짜별 푼 개수 { '2026-11-16': 23 }
   };
   let DB;
   try {
@@ -161,6 +164,15 @@
   const levelName = (track, lv) => (track === 'n' && lv === 7 ? '7–9급' : lv + '급');
   const meaning = (w) => w.k || w.e || '';
   const levelWords = (track = DB.set.track, lv = DB.set.level) => WORDS.filter((w) => w[track] === lv);
+  // 단원: 급수 안을 자주 쓰는 순서대로 20단어씩 (HSK 교재처럼 작은 단위로 진도)
+  const UNIT = 20;
+  const unitCount = (track = DB.set.track, lv = DB.set.level) => Math.ceil(levelWords(track, lv).length / UNIT);
+  const scopeWords = () => {
+    const ws = levelWords();
+    const u = DB.set.unit || 0;
+    return u ? ws.slice((u - 1) * UNIT, u * UNIT) : ws;
+  };
+  const scopeName = () => `HSK ${DB.set.track === 'n' ? '3.0' : '2.0'} ${levelName(DB.set.track, DB.set.level)}${DB.set.unit ? ` · ${DB.set.unit}과` : ''}`;
 
   /* ---------------- 탭 ---------------- */
   let curTab = 'home';
@@ -247,6 +259,37 @@
     if (!IN_FRAME) history.replaceState(history.state, '', '#' + name);
     showTab(name);
   }
+  function levelCard() {
+    const ws = scopeWords();
+    const known = ws.filter((w) => DB.st[w.w] === 2).length;
+    const pct = ws.length ? Math.round((known / ws.length) * 100) : 0;
+    return `<button class="home-level" data-go="level">
+        <span class="hl-top"><span>HSK ${DB.set.track === 'n' ? '3.0' : '2.0'}</span><b>${levelName(DB.set.track, DB.set.level)}${DB.set.unit ? ` <small>${DB.set.unit}과</small>` : ''}</b><span class="hl-change">바꾸기 ${ic('chevronRight')}</span></span>
+        <span class="hl-num"><b>${known}</b> / ${ws.length} 외움 · 쓰기 ${ws.filter(canWriteW).length} <span>${pct}%</span></span>
+        <span class="pbar"><i style="width:${pct}%"></i></span>
+      </button>`;
+  }
+  function todayCard() {
+    const goal = +DB.set.goal || 20;
+    const done = DB.daily[today()] || 0;
+    const st = streak();
+    const dr = dueWords('r').length;
+    const dw = dueWords('w').length;
+    const pct = Math.min(1, done / goal);
+    const C = 2 * Math.PI * 22;
+    return `<div class="today-card">
+        <div class="today-top">
+          <div class="mini-ring"><svg viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="22" class="ring-bg"/><circle cx="26" cy="26" r="22" class="ring-fg" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - pct)}"/></svg><span>${done >= goal ? ic('check') : done}</span></div>
+          <div class="today-txt"><b>오늘 ${done} / ${goal}</b><span>${st ? `${st}일 연속 목표 달성` : '오늘 목표를 채워 연속 기록을 시작하세요'}</span></div>
+        </div>
+        <div class="qmain-btns">
+          <button class="${dr ? 'primary' : ''}" data-go="dueR" ${dr ? '' : 'disabled'}>오늘 복습 · 단어 <b>${dr}</b></button>
+          <button class="${dw ? 'primary' : ''}" data-go="dueW" ${dw ? '' : 'disabled'}>오늘 복습 · 쓰기 <b>${dw}</b></button>
+        </div>
+      </div>`;
+  }
+  const startDueR = () => startQuiz({ pool: () => dueWords('r'), label: '오늘 복습 · 단어', count: 20 });
+  const startDueW = () => startQuiz({ pool: () => dueWords('w'), label: '오늘 복습 · 쓰기', types: ['write'], count: 20, guided: false });
   function renderHome() {
     const s = DB.set;
     const ws = levelWords();
@@ -258,11 +301,8 @@
     const tile = (go, icon, title, sub) =>
       `<button class="tile" data-go="${go}"><span class="tile-ic">${ic(icon)}</span><span class="tile-t">${title}</span><span class="tile-s">${sub}</span></button>`;
     $('#homeBox').innerHTML = `
-      <button class="home-level" data-go="level">
-        <span class="hl-top"><span>HSK ${s.track === 'n' ? '3.0' : '2.0'}</span><b>${levelName(s.track, s.level)}</b><span class="hl-change">바꾸기 ${ic('chevronRight')}</span></span>
-        <span class="hl-num"><b>${known}</b> / ${ws.length} 외움 · 쓰기 ${ws.filter(canWriteW).length} <span>${pct}%</span></span>
-        <span class="pbar"><i style="width:${pct}%"></i></span>
-      </button>
+      ${todayCard()}
+      ${levelCard()}
       <div class="tiles">
         ${tile('words', 'book', '단어장', `${ws.length}단어${favs ? ` · 즐겨찾기 ${favs}` : ''}`)}
         ${tile('quiz', 'pencil', '문제', left ? `안 외운 단어 ${left}개` : '복습할 차례')}
@@ -275,6 +315,8 @@
     if (!b) return;
     const g = b.dataset.go;
     if (g === 'level') return pickLevel();
+    if (g === 'dueR') return startDueR();
+    if (g === 'dueW') return startDueW();
     goTab(g);
   };
   function pickLevel() {
@@ -295,7 +337,9 @@
                 const k = ws.filter((w) => DB.st[w.w] === 2).length;
                 return `<button data-lv="${lv}" class="${lv === s.level ? 'on' : ''}"><b>${levelName(s.track, lv)}</b><span>${k} / ${ws.length}</span>${lv === s.level ? ic('check') : ''}</button>`;
               })
-              .join('')}</div>`;
+              .join('')}</div>
+            <h3>단원 <span class="muted small">(자주 쓰는 순서로 ${UNIT}단어씩)</span></h3>
+            <div class="unit-grid">${unitChips()}</div>`;
         };
         draw();
         L.body.onclick = (e) => {
@@ -304,17 +348,36 @@
           if (b.dataset.t) {
             DB.set.track = b.dataset.t;
             if (DB.set.level > (DB.set.track === 'n' ? 7 : 6)) DB.set.level = 1;
+            DB.set.unit = 0;
             save();
             draw();
           }
           if (b.dataset.lv) {
             DB.set.level = +b.dataset.lv;
+            DB.set.unit = 0;
+            save();
+            draw(); // 급수를 고르면 단원을 고를 수 있게 그대로 둠
+          }
+          if (b.dataset.unit != null) {
+            DB.set.unit = +b.dataset.unit;
             save();
             closeTopLayer();
           }
         };
       },
     });
+  }
+
+  function unitChips() {
+    const ws = levelWords();
+    const n = Math.ceil(ws.length / UNIT);
+    let html = `<button data-unit="0" class="${!DB.set.unit ? 'on' : ''}"><b>전체</b><span>${ws.length}</span></button>`;
+    for (let u = 1; u <= n; u++) {
+      const part = ws.slice((u - 1) * UNIT, u * UNIT);
+      const k = part.filter((w) => DB.st[w.w] === 2).length;
+      html += `<button data-unit="${u}" class="${DB.set.unit === u ? 'on' : ''} ${k === part.length ? 'done' : ''}"><b>${u}과</b><span>${k}/${part.length}</span></button>`;
+    }
+    return html;
   }
 
   /* ---------------- 단어장 ---------------- */
@@ -331,11 +394,21 @@
     $('#levelChips').innerHTML = Array.from({ length: max }, (_, i) => i + 1)
       .map((lv) => `<button data-lv="${lv}" class="${lv === s.level ? 'on' : ''}">${levelName(s.track, lv)}</button>`)
       .join('');
+    if ((s.unit || 0) > unitCount()) s.unit = 0;
+    $('#unitChips').innerHTML = unitChips();
   }
+  $('#unitChips').onclick = (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    DB.set.unit = +b.dataset.unit;
+    save();
+    renderWords();
+  };
   $('#trackSeg').onclick = (e) => {
     const b = e.target.closest('button');
     if (!b) return;
     DB.set.track = b.dataset.track;
+    DB.set.unit = 0;
     save();
     renderWords();
   };
@@ -343,6 +416,7 @@
     const b = e.target.closest('button');
     if (!b) return;
     DB.set.level = +b.dataset.lv;
+    DB.set.unit = 0;
     save();
     renderWords();
   };
@@ -383,7 +457,7 @@
     } else if (DB.set.wordView === 'fav') {
       // 즐겨찾기: 급수와 상관없이 모아서, 최근에 추가한 순
       list = WORDS.filter((w) => DB.star[w.w]).sort((a, b) => DB.star[b.w] - DB.star[a.w]);
-    } else list = levelWords();
+    } else list = scopeWords();
     const f = DB.set.wordView === 'fav' ? 'all' : DB.set.filter;
     if (f === 'new') list = list.filter((w) => DB.st[w.w] !== 2);
     if (f === 'known') list = list.filter((w) => DB.st[w.w] === 2);
@@ -393,7 +467,7 @@
   }
 
   function renderProgress() {
-    const ws = levelWords();
+    const ws = scopeWords();
     const known = ws.filter((w) => DB.st[w.w] === 2).length;
     const learn = ws.filter((w) => DB.st[w.w] === 1).length;
     const wrong = ws.filter((w) => DB.wrong[w.w] && !DB.wrong[w.w].ok).length;
@@ -484,6 +558,7 @@
               ${w.h ? `<dt>한자음</dt><dd>${esc(w.h)}</dd>` : ''}
               ${w.k && w.e ? `<dt>영어</dt><dd class="muted">${esc(w.e)}</dd>` : ''}
               ${w.c ? `<dt>양사</dt><dd class="zh">${esc([...w.c].join(', '))}</dd>` : ''}
+              ${chars.some((c) => CHAR_RAD(c)) ? `<dt>부수</dt><dd class="zh">${chars.map((c) => (CHAR_RAD(c) ? `${esc(c)} <span class="muted">${esc(CHAR_RAD(c))}</span>` : '')).filter(Boolean).join(' · ')}</dd>` : ''}
               <dt>급수</dt><dd>${w.n ? `HSK 3.0 ${levelName('n', w.n)}` : ''}${w.n && w.o ? ' · ' : ''}${w.o ? `HSK 2.0 ${w.o}급` : ''}</dd>
               ${note ? `<dt>오답</dt><dd>${note.c}번 틀림 · ${note.ok ? '해결' : '복습 필요'}</dd>` : ''}
               ${DB.wwrong[w.w] ? `<dt>쓰기 오답</dt><dd>${DB.wwrong[w.w].c}번 틀림 · ${DB.wwrong[w.w].ok ? '해결' : '복습 필요'}</dd>` : ''}
@@ -493,6 +568,18 @@
               .map((c) => `<button class="char-btn" data-act="write" data-c="${esc(c)}"><span class="c zh">${esc(c)}</span><span class="h">${esc(CHAR_HANJA(c))}</span></button>`)
               .join('')}</div>
             <button class="big" data-act="writeAll">${ic('write')} ‘${esc(w.w)}’ 전체 쓰기</button>` : ''}
+            ${(() => {
+              const ex = SENTS.filter((x) => x.z.includes(w.w)).sort((a, b) => sentLv(a) - sentLv(b)).slice(0, 3);
+              return ex.length
+                ? `<h3>예문</h3><div class="ex-list">${ex.map((x) => `<div class="ex" data-say="${esc(sentText(x))}">${rubyHTML(x)}<div class="ex-ko">${esc(x.k)}</div></div>`).join('')}</div>`
+                : '';
+            })()}
+            ${(() => {
+              const rel = relatedWords(w);
+              return rel.length
+                ? `<h3>같은 글자가 들어간 단어</h3><div class="rel">${rel.map((x) => `<button data-w="${esc(x.w)}"><span class="zh">${esc(x.w)}</span><span>${esc(meaning(x).split(/[;,]/)[0])}</span></button>`).join('')}</div>`
+                : '';
+            })()}
             <div class="dock" role="toolbar" aria-label="단어 표시">
               <button class="dock-btn ${DB.star[w.w] ? 'star-on' : ''}" data-act="star" aria-pressed="${!!DB.star[w.w]}" aria-label="즐겨찾기" title="즐겨찾기">${ic(DB.star[w.w] ? 'starFill' : 'star')}</button>
               <button class="dock-btn" data-act="speak" aria-label="발음 듣기" title="발음 듣기">${ic('sound')}</button>
@@ -503,6 +590,10 @@
         };
         draw();
         L.body.onclick = (e) => {
+          const wb = e.target.closest('[data-w]');
+          if (wb && wb.dataset.w !== w.w) return openWord(wb.dataset.w);
+          const ex = e.target.closest('[data-say]');
+          if (ex) return speak(ex.dataset.say);
           const b = e.target.closest('[data-act]');
           if (!b) return;
           const a = b.dataset.act;
@@ -515,14 +606,13 @@
             $('.dock [data-act=star]', L.body).classList.add('pop');
           }
           if (a === 'known') {
-            if (DB.st[w.w] === 2) delete DB.st[w.w];
-            else DB.st[w.w] = 2;
+            setKnown(w, DB.st[w.w] !== 2);
             save();
             draw();
             $('.dock [data-act=known]', L.body).classList.add('pop');
           }
           if (a === 'wrToggle') {
-            DB.wr[w.w] = canWriteW(w) ? { ok: false, s: 0 } : { ok: true, s: 2 };
+            setWritable(w, !canWriteW(w));
             save();
             draw();
             $('.dock [data-act=wrToggle]', L.body).classList.add('pop');
@@ -534,6 +624,25 @@
       },
     });
   }
+  // 같은 글자가 들어간 다른 단어 (낮은 급수·자주 쓰는 것부터 8개)
+  function relatedWords(w) {
+    const cs = [...new Set([...w.w].filter(isHan))];
+    const out = [];
+    for (const x of WORDS) {
+      if (x.w === w.w || !x.k) continue;
+      if (cs.some((c) => x.w.includes(c))) out.push(x);
+      if (out.length >= 40) break;
+    }
+    return out.sort((a, b) => (a.n || 9) - (b.n || 9)).slice(0, 8);
+  }
+  let RAD_ONE = null;
+  const CHAR_RAD = (c) => {
+    if (!RAD_ONE) {
+      RAD_ONE = new Map();
+      for (const w of WORDS) if (w.r && [...w.w].length === 1) RAD_ONE.set(w.w, w.r);
+    }
+    return RAD_ONE.get(c) || '';
+  };
   let HANJA_ONE = null;
   const CHAR_HANJA = (c) => {
     if (!HANJA_ONE) {
@@ -592,7 +701,10 @@
           } else if (a === 'speak') speak(w.w);
           else if (a === 'detail') openWord(w.w);
           else if (a === 'yes' || a === 'no') {
-            DB.st[w.w] = a === 'yes' ? 2 : 1;
+            if (a === 'yes') setKnown(w, true);
+            else if (DB.st[w.w] === 2) setKnown(w, false);
+            else DB.st[w.w] = 1;
+            tick();
             a === 'yes' ? knew++ : missed++;
             save();
             i++;
@@ -814,6 +926,63 @@
 
   /* ---------------- 오답노트 기록 ---------------- */
   const canWriteW = (w) => !!(DB.wr[w.w] && DB.wr[w.w].ok);
+
+  /* ---------------- 간격 반복 (외움 r / 쓰기 w 따로) ---------------- */
+  const IV = [0, 1, 3, 7, 14, 30, 60, 120]; // 단계별 다음 복습까지 날짜
+  const dayStart = (t = Date.now()) => new Date(new Date(t).toDateString()).getTime();
+  const srsGet = (w, sk) => (DB.srs[w.w] || {})[sk];
+  function srsSet(w, sk, b) {
+    const e = DB.srs[w.w] || (DB.srs[w.w] = {});
+    e[sk] = { b, due: dayStart() + IV[b] * 864e5 };
+  }
+  function srsDel(w, sk) {
+    if (DB.srs[w.w]) delete DB.srs[w.w][sk];
+  }
+  // 맞히면 다음 단계(간격이 늘어남), 틀리면 처음으로
+  function srsHit(w, sk, ok) {
+    const c = srsGet(w, sk);
+    srsSet(w, sk, ok ? Math.min((c ? c.b : 0) + 1, IV.length - 1) : 0);
+  }
+  const isDue = (w, sk) => {
+    const c = srsGet(w, sk);
+    return !!c && c.due <= Date.now();
+  };
+  const dueWords = (sk) => WORDS.filter((w) => (sk === 'r' ? DB.st[w.w] === 2 : canWriteW(w)) && isDue(w, sk));
+  // 외움 표시를 바꾸는 곳은 모두 여기로 (복습 일정도 같이)
+  function setKnown(w, on) {
+    if (on) {
+      DB.st[w.w] = 2;
+      if (!srsGet(w, 'r')) srsSet(w, 'r', 1);
+    } else {
+      DB.st[w.w] = 1;
+      srsDel(w, 'r');
+    }
+  }
+  function setWritable(w, on) {
+    DB.wr[w.w] = on ? { ok: true, s: 2 } : { ok: false, s: 0 };
+    if (on && !srsGet(w, 'w')) srsSet(w, 'w', 1);
+    if (!on) srsDel(w, 'w');
+  }
+  // 오늘 한 개수 (매일 목표, 연속 학습일)
+  function tick(n = 1) {
+    const d = today();
+    DB.daily[d] = (DB.daily[d] || 0) + n;
+  }
+  function streak() {
+    const goal = +DB.set.goal || 20;
+    let n = 0;
+    let t = dayStart();
+    const key = (t) => {
+      const d = new Date(t);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+    if ((DB.daily[key(t)] || 0) < goal) t -= 864e5; // 오늘 아직이면 어제부터
+    while ((DB.daily[key(t)] || 0) >= goal) {
+      n++;
+      t -= 864e5;
+    }
+    return n;
+  }
   function addWrong(w, type, answer) {
     const book = type === 'write' ? DB.wwrong : DB.wrong;
     const n = book[w.w] || (book[w.w] = { c: 0, s: 0, f: Date.now(), log: [] });
@@ -826,14 +995,19 @@
     if (type === 'write') {
       // 쓰기에서 틀리면 '쓸 수 있음'만 풀림 (뜻을 외운 것과는 별개)
       DB.wr[w.w] = { ok: false, s: 0 };
-    } else if (DB.st[w.w] === 2) DB.st[w.w] = 1;
+      srsDel(w, 'w');
+    } else if (DB.st[w.w] === 2) setKnown(w, false);
     save();
   }
   // 안 보고 쓰기를 통과: 2번 연속이면 '쓸 수 있음'
   function writePass(w) {
     const r = DB.wr[w.w] || (DB.wr[w.w] = { ok: false, s: 0 });
     r.s = (r.s || 0) + 1;
-    if (r.s >= 2) r.ok = true;
+    if (r.ok) srsHit(w, 'w', true); // 이미 쓸 수 있으면 복습 간격을 늘림
+    else if (r.s >= 2) {
+      r.ok = true;
+      srsSet(w, 'w', 1);
+    }
     save();
     return markRight(w, DB.wwrong);
   }
@@ -918,7 +1092,7 @@
   // 따라쓰기용 단어: 지금 급수에서 아직 못 쓰는 단어 (없으면 급수 전체), 무작위 n개 → 예문과 같은 모양으로
   const wordItem = (w) => ({ z: [w.w], p: [w.p.replace(/\s+/g, '')], k: meaning(w), word: true });
   function pickCopyWords(n) {
-    const lv = levelWords().filter(canWrite);
+    const lv = scopeWords().filter(canWrite);
     const left = lv.filter((w) => !canWriteW(w));
     return shuffle((left.length ? left : lv).slice()).slice(0, n).map(wordItem);
   }
@@ -979,6 +1153,8 @@
           if (a === 'say') speak(sentText(x));
           if (a === 'slow') speak(sentText(x), 0.5);
           if (a === 'next') {
+            tick();
+            save();
             i++;
             draw();
           }
@@ -1003,51 +1179,87 @@
   }
 
   /* ---------------- 문제 ---------------- */
-  const TYPE_NAME = { meaning: '뜻 고르기', word: '한자 고르기', pinyin: '병음 고르기', listen: '듣고 고르기', write: '직접 쓰기', trzh: '작문 (한→중)', trko: '번역 (중→한)' };
+  const TYPE_NAME = { tone: '성조 고르기', meaning: '뜻 고르기', word: '한자 고르기', pinyin: '병음 고르기', listen: '듣고 고르기', write: '직접 쓰기', trzh: '작문 (한→중)', trko: '번역 (중→한)' };
   const isTr = (t) => t === 'trzh' || t === 'trko';
-  function scopePool(scope) {
-    const lv = levelWords();
-    if (scope === 'level' || scope === 'new') return lv.filter((w) => DB.st[w.w] !== 2); // 외운 단어는 빼고
-    if (scope === 'known') return lv.filter((w) => DB.st[w.w] === 2);
-    if (scope === 'star') return WORDS.filter((w) => DB.star[w.w]);
-    if (scope === 'wrong') return WORDS.filter((w) => DB.wrong[w.w] && !DB.wrong[w.w].ok);
-    return lv;
+  const MIX = ['meaning', 'word', 'pinyin', 'listen', 'tone']; // 단어 문제는 이 유형들을 알아서 섞음
+
+  /* ---------------- 성조 ---------------- */
+  const TONE_MARK = { 1: '\u0304', 2: '\u0301', 3: '\u030C', 4: '\u0300' };
+  function parseSyl(sy) {
+    const d = sy.normalize('NFD');
+    let t = 5;
+    if (d.includes('\u0304')) t = 1;
+    else if (d.includes('\u0301')) t = 2;
+    else if (d.includes('\u030C')) t = 3;
+    else if (d.includes('\u0300')) t = 4;
+    return { base: d.replace(/[\u0300\u0301\u030C\u0304]/g, '').normalize('NFC'), t };
   }
-  const MIX = ['meaning', 'word', 'pinyin', 'listen']; // 단어 문제는 이 유형들을 알아서 섞음
+  function markSyl(base, t) {
+    if (t === 5) return base;
+    const low = base.toLowerCase();
+    let k = low.search(/[ae]/);
+    if (k < 0) k = low.indexOf('ou');
+    if (k < 0) {
+      for (let j = low.length - 1; j >= 0; j--)
+        if ('iouü'.includes(low[j])) {
+          k = j;
+          break;
+        }
+    }
+    if (k < 0) return base;
+    return (base.slice(0, k + 1) + TONE_MARK[t] + base.slice(k + 1)).normalize('NFC');
+  }
+  // 같은 음절에 성조만 다른 보기 3개
+  function toneOptions(w) {
+    const syl = w.p.split(/\s+/).map(parseSyl);
+    const answer = w.p;
+    const seen = new Set([answer]);
+    const out = [];
+    for (let tries = 0; tries < 60 && out.length < 3; tries++) {
+      const changed = syl.map((x) => ({ ...x }));
+      const nChange = syl.length === 1 ? 1 : 1 + ((Math.random() * Math.min(2, syl.length)) | 0);
+      for (let c = 0; c < nChange; c++) {
+        const j = (Math.random() * syl.length) | 0;
+        const pool = [1, 2, 3, 4].filter((t) => t !== changed[j].t);
+        changed[j].t = pool[(Math.random() * pool.length) | 0];
+      }
+      const p = changed.map((x) => markSyl(x.base, x.t)).join(' ');
+      if (!seen.has(p)) {
+        seen.add(p);
+        out.push({ w: w.w, p });
+      }
+    }
+    return out;
+  }
   const lvLabel = () => `HSK ${DB.set.track === 'n' ? '3.0' : '2.0'} ${levelName(DB.set.track, DB.set.level)}`;
   function renderQuizTab() {
-    const ws = levelWords();
+    const ws = scopeWords();
     const left = ws.filter((w) => DB.st[w.w] !== 2).length;
-    const known = ws.length - left;
-    const pct = ws.length ? Math.round((known / ws.length) * 100) : 0;
-    const wws = ws.filter(canWrite);
-    const wOk = wws.filter(canWriteW).length;
-    const wLeft = wws.length - wOk;
+    const wLeft = ws.filter((w) => canWrite(w) && !canWriteW(w)).length;
+    const dr = dueWords('r').length;
+    const dw = dueWords('w').length;
     const tile = (go, icon, title, sub) =>
       `<button class="tile" data-go="${go}"><span class="tile-ic">${ic(icon)}</span><span class="tile-t">${title}</span><span class="tile-s">${sub}</span></button>`;
     $('#quizBox').innerHTML = `
-      <button class="home-level" data-go="level">
-        <span class="hl-top"><span>HSK ${DB.set.track === 'n' ? '3.0' : '2.0'}</span><b>${levelName(DB.set.track, DB.set.level)}</b><span class="hl-change">바꾸기 ${ic('chevronRight')}</span></span>
-        <span class="hl-num"><b>${known}</b> / ${ws.length} 외움 · 쓰기 ${ws.filter(canWriteW).length} <span>${pct}%</span></span>
-        <span class="pbar"><i style="width:${pct}%"></i></span>
-      </button>
+      ${levelCard()}
       <div class="qmain">
-        <div class="qmain-head"><span class="tile-ic">${ic('pencil')}</span><span><b>단어 문제</b><span class="muted small">뜻 · 한자 · 병음 · 듣기를 섞어서 10문제</span></span></div>
+        <div class="qmain-head"><span class="tile-ic">${ic('pencil')}</span><span><b>단어 문제</b><span class="muted small">뜻 · 한자 · 병음 · 성조 · 듣기를 섞어서</span></span></div>
         <div class="qmain-btns">
           <button class="primary" data-go="learn" ${left ? '' : 'disabled'}>안 외운 단어 <b>${left}</b></button>
-          <button data-go="review" ${known ? '' : 'disabled'}>복습 · 외운 단어 <b>${known}</b></button>
+          <button data-go="dueR" ${dr ? '' : 'disabled'}>오늘 복습 <b>${dr}</b></button>
         </div>
       </div>
       <div class="qmain">
-        <div class="qmain-head"><span class="tile-ic">${ic('brush')}</span><span><b>쓰기 연습</b><span class="muted small">보고 쓰기 · 안 보고 쓰기를 골라서 · 외운 단어부터</span></span></div>
+        <div class="qmain-head"><span class="tile-ic">${ic('brush')}</span><span><b>쓰기 연습</b><span class="muted small">보고 쓰기 · 안 보고 쓰기 · 외운 단어부터</span></span></div>
         <div class="qmain-btns">
           <button class="primary" data-go="write" ${wLeft ? '' : 'disabled'}>아직 못 쓰는 단어 <b>${wLeft}</b></button>
-          <button data-go="writeReview" ${wOk ? '' : 'disabled'}>쓰기 복습 <b>${wOk}</b></button>
+          <button data-go="dueW" ${dw ? '' : 'disabled'}>오늘 쓰기 복습 <b>${dw}</b></button>
         </div>
       </div>
-      <div class="tiles">
-        ${tile('sent', 'write', '따라쓰기', '단어 · 문장을 노트에')}
-        ${tile('tr', 'keyboard', '작문 · 번역', '문장을 직접 입력')}
+      <div class="tiles three">
+        ${tile('tone', 'wave', '성조', '듣고 성조 고르기')}
+        ${tile('sent', 'write', '따라쓰기', '단어 · 문장')}
+        ${tile('tr', 'keyboard', '작문 · 번역', '직접 입력')}
       </div>`;
     const h = DB.hist.slice(0, 8);
     $('#quizHistory').innerHTML = h.length
@@ -1059,19 +1271,19 @@
     if (!b || b.disabled) return;
     const g = b.dataset.go;
     if (g === 'level') return pickLevel();
-    if (g === 'learn') return startQuiz({ pool: () => levelWords().filter((w) => DB.st[w.w] !== 2), label: lvLabel() });
-    if (g === 'review') return startQuiz({ pool: () => levelWords().filter((w) => DB.st[w.w] === 2), label: '복습 · ' + lvLabel() });
+    if (g === 'learn') return startQuiz({ pool: () => scopeWords().filter((w) => DB.st[w.w] !== 2), label: scopeName() });
+    if (g === 'dueR') return startDueR();
+    if (g === 'dueW') return startDueW();
+    if (g === 'tone') return startQuiz({ pool: () => scopeWords(), label: '성조 · ' + scopeName(), types: ['tone'] });
     if (g === 'write') {
       // 아직 못 쓰는 단어 중 뜻을 외운 단어부터 (모자라면 나머지도)
       const pool = () => {
-        const left = levelWords().filter((w) => canWrite(w) && !canWriteW(w));
+        const left = scopeWords().filter((w) => canWrite(w) && !canWriteW(w));
         const knownFirst = left.filter((w) => DB.st[w.w] === 2);
         return knownFirst.length >= 10 ? knownFirst : left;
       };
       return startQuiz({ pool, label: '쓰기 연습', types: ['write'], count: 10 });
     }
-    if (g === 'writeReview')
-      return startQuiz({ pool: () => levelWords().filter((w) => canWrite(w) && canWriteW(w)), label: '쓰기 복습', types: ['write'], count: 10 });
     if (g === 'sent') return startSentences();
     if (g === 'tr') return startTranslate();
   };
@@ -1117,7 +1329,8 @@
         // 그 단어가 들어간 예문을 우선 (없으면 같은 급수의 다른 예문)
         q.s = pickSentences(1, w, usedS)[0];
         usedS.add(sid(q.s));
-      } else if (type !== 'write') q.opts = shuffle([w, ...distractors(w, type)]);
+      } else if (type === 'tone') q.opts = shuffle([w, ...toneOptions(w)]);
+      else if (type !== 'write') q.opts = shuffle([w, ...distractors(w, type)]);
       return q;
     });
   }
@@ -1173,7 +1386,8 @@
         };
         const remake = (r) => {
           const q = { w: r.w, type: r.type };
-          if (isTr(r.type)) q.s = r.s;
+          if (r.type === 'tone') q.opts = shuffle([r.w, ...toneOptions(r.w)]);
+          else if (isTr(r.type)) q.s = r.s;
           else if (r.type === 'write') q.wmode = 'free'; // 틀린 쓰기는 안 보고 다시
           else if (r.type !== 'write') q.opts = shuffle([r.w, ...distractors(r.w, r.type)]);
           return q;
@@ -1246,8 +1460,10 @@
             else addWrong(q.w, 'write', answer);
           } else if (ok) {
             r.solved = markRight(q.w);
-            if (!DB.st[q.w.w]) DB.st[q.w.w] = 1;
+            if (DB.st[q.w.w] === 2) srsHit(q.w, 'r', true);
+            else if (!DB.st[q.w.w]) DB.st[q.w.w] = 1;
           } else addWrong(q.w, q.type, answer);
+          tick();
           results.push(r);
           save();
           return r;
@@ -1294,18 +1510,19 @@
           if (q.type === 'meaning') prompt = `${big}<div class="qz-ask">이 단어의 뜻은?</div>`;
           if (q.type === 'word') prompt = `<div class="qz-ko">${esc(meaning(w))}</div><div class="qz-ask">알맞은 한자는?</div>`;
           if (q.type === 'pinyin') prompt = `${big}<div class="qz-ask">알맞은 병음은?</div>`;
+          if (q.type === 'tone') prompt = `${big}<div class="qz-ask">성조가 맞는 병음은?</div>`;
           if (q.type === 'listen') prompt = `<button class="listen" data-act="speakQ" aria-label="다시 듣기">${ic('sound')}</button><div class="qz-ask">듣고 알맞은 단어를 고르세요</div>`;
           const zhOpts = q.type === 'word' || q.type === 'listen';
-          const label = (o) => (q.type === 'meaning' ? esc(meaning(o)) : q.type === 'pinyin' ? esc(o.p) : esc(o.w));
+          const label = (o) => (q.type === 'meaning' ? esc(meaning(o)) : q.type === 'pinyin' || q.type === 'tone' ? esc(o.p) : esc(o.w));
           L.body.innerHTML = `<div class="qz">${head(q)}
             <div class="qz-prompt">${prompt}</div>
-            <div class="qz-mid">${q.type === 'meaning' ? replayBtn() : ''}</div>
+            <div class="qz-mid">${q.type === 'meaning' || q.type === 'tone' ? replayBtn() : ''}</div>
             <div class="qz-fb"></div>
             <div class="qz-bottom">
               <div class="opts ${zhOpts ? 'grid2' : ''}">${q.opts.map((o, k) => `<button data-k="${k}" class="${zhOpts ? 'zh zh-opt' : ''}">${label(o)}</button>`).join('')}</div>
               <div class="qz-actions"><button class="ghost" data-act="idk">모르겠어요</button></div>
             </div></div>`;
-          if (q.type === 'listen' || (DB.set.autoSpeak && q.type !== 'word' && q.type !== 'pinyin')) setTimeout(() => speak(w.w), 150);
+          if (q.type === 'listen' || q.type === 'tone' || (DB.set.autoSpeak && q.type !== 'word' && q.type !== 'pinyin')) setTimeout(() => speak(w.w), 150);
         };
 
 
@@ -1333,6 +1550,7 @@
           ta.readOnly = true;
           answered = true;
           results.push({ w: q.w, type: q.type, s: x, practice: true });
+          tick();
           DB.sent[sid(x)] = Date.now();
           save();
           let line = '';
@@ -1391,6 +1609,8 @@
                 answered = true;
                 const r = { w, type: 'write', practice: true };
                 results.push(r);
+                tick();
+                save();
                 status('다 따라 썼어요', 'ok');
                 return feedback(q, r);
               }
@@ -1465,9 +1685,8 @@
             if (act === 'qStar') {
               if (DB.star[w.w]) delete DB.star[w.w];
               else DB.star[w.w] = Date.now();
-            } else if (act === 'qBrush') DB.wr[w.w] = canWriteW(w) ? { ok: false, s: 0 } : { ok: true, s: 2 };
-            else if (DB.st[w.w] === 2) DB.st[w.w] = 1;
-            else DB.st[w.w] = 2;
+            } else if (act === 'qBrush') setWritable(w, !canWriteW(w));
+            else setKnown(w, DB.st[w.w] !== 2);
             save();
             const tmp = document.createElement('div');
             tmp.innerHTML = markBtns(w, q.type);
@@ -1512,8 +1731,8 @@
           if (b.dataset.k != null) {
             const o = q.opts[+b.dataset.k];
             const ok = o === q.w;
-            const mine = q.type === 'meaning' ? meaning(o) : q.type === 'pinyin' ? o.p : o.w;
-            const r = record(q, ok, `${mine}${q.type === 'meaning' || q.type === 'pinyin' ? '' : ` (${o.p})`}`);
+            const mine = q.type === 'meaning' ? meaning(o) : q.type === 'pinyin' || q.type === 'tone' ? o.p : o.w;
+            const r = record(q, ok, `${mine}${q.type === 'meaning' || q.type === 'pinyin' || q.type === 'tone' ? '' : ` (${o.p})`}`);
             $$('.opts button', L.body).forEach((x) => {
               x.disabled = true;
               if (q.opts[+x.dataset.k] === q.w) x.classList.add('right');
@@ -1697,6 +1916,7 @@
   function renderSettings() {
     const s = DB.set;
     $('#setTheme').value = s.theme;
+    $('#setGoal').value = String(s.goal || 20);
     $('#setRate').value = s.rate;
     $('#setAutoSpeak').checked = !!s.autoSpeak;
     $('#setHint').value = s.hint;
@@ -1716,6 +1936,7 @@
       after && after();
     });
   bindSet('#setTheme', 'theme', undefined, applyTheme);
+  bindSet('#setGoal', 'goal', (v) => +v);
   bindSet('#setRate', 'rate', undefined, () => speak('你好'));
   bindSet('#setAutoSpeak', 'autoSpeak');
   bindSet('#setHint', 'hint');
@@ -1821,6 +2042,12 @@
       return;
     }
     for (const w of WORDS) BY.set(w.w, w);
+    // 예전부터 외움/쓸 수 있음이던 단어는 내일부터 복습 일정에 넣음
+    for (const w of WORDS) {
+      if (DB.st[w.w] === 2 && !srsGet(w, 'r')) srsSet(w, 'r', 1);
+      if (canWriteW(w) && !srsGet(w, 'w')) srsSet(w, 'w', 1);
+    }
+    save();
     if (!IN_FRAME) history.replaceState({ layer: 0 }, '', '#home');
     showTab('home');
     updateBadge();

@@ -45,6 +45,7 @@
         <span class="muted small" id="trackHint"></span>
       </div>
       <div class="chips lv-only" id="levelChips"></div>
+      <div class="chips small-chips lv-only unit-chips" id="unitChips"></div>
       <div class="progress-card lv-only" id="levelProgress"></div>
       <div class="toolbar">
         <input type="search" id="wordSearch" placeholder="한자, 병음, 뜻 검색" autocomplete="off">
@@ -100,6 +101,8 @@
     <section id="tab-settings" data-tab="settings" hidden>
       <h2>설정</h2>
       <div class="card">
+        <div class="row"><span>하루 목표 (문제·연습 개수)</span>
+          <select id="setGoal"><option value="10">10개</option><option value="20">20개</option><option value="30">30개</option><option value="50">50개</option></select></div>
         <div class="row"><span>화면 모드</span>
           <select id="setTheme"><option value="system">시스템 설정</option><option value="light">라이트</option><option value="dark">다크</option></select></div>
         <div class="row"><span>발음 속도</span>
