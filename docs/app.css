@@ -469,3 +469,17 @@ button.rb { cursor: pointer; }
 .qz-prompt.sp.copy .rz, .qz-prompt.sp.copy .rb.punct { font-size: 34px; }
 .qz-prompt.sp.copy .rp { font-size: 14px; }
 .qz-prompt.sp.copy .sp-ko { font-size: 18px; font-weight: 500; color: var(--muted); }
+
+/* 문장 연습: 단어마다 누를 수 있는 상자 (누르면 획순 따라 쓰기) */
+.ruby.boxed { gap: 8px 6px; }
+.ruby.boxed button.rb {
+  border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 6px 9px 8px;
+  box-shadow: 0 1px 0 var(--line), 0 3px 10px rgba(0,0,0,.06); transition: transform .08s, box-shadow .08s, border-color .08s;
+}
+.ruby.boxed button.rb:active { transform: translateY(1px) scale(.97); box-shadow: 0 0 0 var(--line); border-color: var(--accent); }
+@media (hover: hover) { .ruby.boxed button.rb:hover { border-color: var(--accent); background: var(--panel); } }
+.ruby.boxed span.rb { padding: 6px 2px 8px; }
+.ruby.boxed .rb.punct { align-self: flex-end; padding-bottom: 8px; }
+.qz-prompt.sp.copy .ruby.boxed .rz { font-size: 30px; }
+
+.rgrp { display: inline-flex; align-items: flex-end; gap: 2px; white-space: nowrap; }

@@ -64,7 +64,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-16-2157'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-16-2159'; // tools/bump.js 가 sw.js 와 함께 올림
 
   /* ---------------- 저장 ---------------- */
   const KEY = 'hsk-study-v1';
@@ -872,22 +872,27 @@
     return c.sort((a, b) => score(a) - score(b)).slice(0, n);
   }
   // 한자 위에 병음. missed: 모범 답안에서 내 답에 없던 글자의 위치(문장부호 뺀 순서)
-  function rubyHTML(x, missed) {
+  function rubyHTML(x, missed, boxed = false) {
     let ci = 0;
-    return `<div class="ruby">${x.z
-      .map((t, k) => {
-        if (!x.p[k]) return `<span class="rb punct zh">${esc(t)}</span>`;
-        const chars = [...t]
-          .map((c) => {
-            const m = missed && missed.has(ci);
-            ci++;
-            return m ? `<mark>${esc(c)}</mark>` : esc(c);
-          })
-          .join('');
-        const tag = BY.has(t) ? `button data-w="${esc(t)}"` : 'span';
-        return `<${tag} class="rb"><span class="rp">${esc(x.p[k])}</span><span class="rz zh">${chars}</span></${tag.split(' ')[0]}>`;
-      })
-      .join('')}</div>`;
+    const parts = x.z.map((t, k) => {
+      if (!x.p[k]) return { punct: true, html: `<span class="rb punct zh">${esc(t)}</span>` };
+      const chars = [...t]
+        .map((c) => {
+          const m = missed && missed.has(ci);
+          ci++;
+          return m ? `<mark>${esc(c)}</mark>` : esc(c);
+        })
+        .join('');
+      const tag = BY.has(t) ? `button data-w="${esc(t)}"` : 'span';
+      return { html: `<${tag} class="rb"><span class="rp">${esc(x.p[k])}</span><span class="rz zh">${chars}</span></${tag.split(' ')[0]}>` };
+    });
+    // 문장부호는 앞 단어와 한 덩어리로 (혼자 다음 줄로 넘어가지 않게)
+    const groups = [];
+    for (const pt of parts) {
+      if (pt.punct && groups.length) groups[groups.length - 1] += pt.html;
+      else groups.push(pt.html);
+    }
+    return `<div class="ruby${boxed ? ' boxed' : ''}">${groups.map((g) => `<span class="rgrp">${g}</span>`).join('')}</div>`;
   }
   // 모범 답안 글자 중 내 답과 순서대로 겹치는(LCS) 글자를 찾음
   function compareZh(model, mine) {
@@ -935,9 +940,8 @@
             <div class="qz-top"><div class="q-progress"><i style="width:${(i / list.length) * 100}%"></i></div>
               <div class="q-kind"><span>노트에 따라 쓰기</span><span>${i + 1} / ${list.length}</span></div></div>
             <div class="qz-prompt sp copy">
-              ${rubyHTML(x)}
+              ${rubyHTML(x, null, true)}
               <div class="sp-ko">${esc(x.k)}</div>
-              <div class="qz-ask">노트에 따라 써 보세요 · 단어를 누르면 획순</div>
             </div>
             <div class="qz-mid"><button class="replay" data-act="say" aria-label="듣기" title="듣기">${ic('sound')}</button><button class="replay" data-act="slow" aria-label="느리게 듣기" title="느리게 듣기">${ic('snail')}</button></div>
             <div class="qz-bottom"><div class="qz-actions">
@@ -946,8 +950,9 @@
         };
         draw();
         L.body.onclick = (e) => {
+          // 단어 상자를 누르면 그 단어의 획순 따라 쓰기
           const wb = e.target.closest('[data-w]');
-          if (wb) return openWord(wb.dataset.w);
+          if (wb) return BY.get(wb.dataset.w) && openWriting(BY.get(wb.dataset.w), 0);
           const b = e.target.closest('button');
           if (!b) return;
           const a = b.dataset.act;
