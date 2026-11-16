@@ -67,7 +67,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-17-0340'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-17-0343'; // tools/bump.js 가 sw.js 와 함께 올림
 
   // 화면(HTML)과 앱 파일 버전이 다르면(예전 저장본이 섞이면) 저장본을 비우고 한 번 새로 고침
   (() => {
@@ -341,15 +341,56 @@
     if (!IN_FRAME) history.replaceState(history.state, '', '#' + name);
     showTab(name);
   }
+  // 급수·단원 카드: 누르면 그 단원 학습 시작, 오른쪽 위 '바꾸기'로 급수·단원 변경
   function levelCard() {
     const ws = scopeWords();
     const known = ws.filter((w) => DB.st[w.w] === 2).length;
     const pct = ws.length ? Math.round((known / ws.length) * 100) : 0;
-    return `<button class="home-level" data-go="level">
-        <span class="hl-top"><span>HSK ${DB.set.track === 'n' ? '3.0' : '2.0'}</span><b>${levelName(DB.set.track, DB.set.level)}${DB.set.unit ? ` <small>${DB.set.unit}과</small>` : ''}</b><span class="hl-change">바꾸기 ${ic('chevronRight')}</span></span>
-        <span class="hl-num"><b>${known}</b> / ${ws.length} 외움 · 쓰기 ${ws.filter(canWriteW).length} <span>${pct}%</span></span>
-        <span class="pbar"><i style="width:${pct}%"></i></span>
-      </button>`;
+    const left = ws.length - known;
+    return `<div class="home-level">
+        <button class="hl-main" data-go="study">
+          <span class="hl-top"><span>HSK ${DB.set.track === 'n' ? '3.0' : '2.0'}</span><b>${levelName(DB.set.track, DB.set.level)}${DB.set.unit ? ` <small>${DB.set.unit}과</small>` : ''}</b></span>
+          <span class="hl-num"><b>${known}</b> / ${ws.length} 외움 · 쓰기 ${ws.filter(canWriteW).length} <span>${pct}%</span></span>
+          <span class="pbar"><i style="width:${pct}%"></i></span>
+          <span class="hl-go">${left ? `${DB.set.unit ? '' : '다음 단원 '}학습 시작` : '다음 단원으로'} ${ic('play')}</span>
+        </button>
+        <button class="hl-change" data-go="level">바꾸기 ${ic('chevronRight')}</button>
+      </div>`;
+  }
+  // 단원 학습: 지금 단원의 안 외운 단어로 단어 문제. 단원을 다 외우면 다음 단원(없으면 다음 급수)으로
+  const unitLeft = (u) => levelWords().slice((u - 1) * UNIT, u * UNIT).filter((w) => DB.st[w.w] !== 2).length;
+  function nextUnit() {
+    const n = unitCount();
+    for (let u = (DB.set.unit || 0) + 1; u <= n; u++) if (unitLeft(u)) return (DB.set.unit = u);
+    for (let u = 1; u <= n; u++) if (unitLeft(u)) return (DB.set.unit = u);
+    const max = DB.set.track === 'n' ? 7 : 6;
+    if (DB.set.level < max) {
+      DB.set.level++;
+      DB.set.unit = 1;
+      return 1;
+    }
+    return 0;
+  }
+  function startStudy() {
+    if (!DB.set.unit || !unitLeft(DB.set.unit)) {
+      const from = scopeName();
+      if (!nextUnit()) return toast('이 급수의 단어를 모두 외웠어요');
+      if (DB.set.unit && from !== scopeName()) toast(`${scopeName()} 학습을 시작해요`);
+      save();
+    }
+    const unitAtStart = DB.set.unit;
+    startQuiz({
+      pool: () => scopeWords().filter((w) => DB.st[w.w] !== 2),
+      label: scopeName(),
+      onFinish: () => {
+        if (DB.set.unit === unitAtStart && !unitLeft(unitAtStart)) {
+          const done = scopeName();
+          nextUnit();
+          save();
+          toast(`${done} 완료! 다음은 ${scopeName()}`);
+        }
+      },
+    });
   }
   function todayCard() {
     const goal = +DB.set.goal || 20;
@@ -407,6 +448,7 @@
     if (!b) return;
     const g = b.dataset.go;
     if (g === 'level') return pickLevel();
+    if (g === 'study') return startStudy();
     if (g === 'dueR') return startDueR();
     if (g === 'dueW') return startDueW();
     goTab(g);
@@ -1620,6 +1662,7 @@
     if (!b || b.disabled) return;
     const g = b.dataset.go;
     if (g === 'level') return pickLevel();
+    if (g === 'study') return startStudy();
     if (g === 'learn') return startQuiz({ pool: () => scopeWords().filter((w) => DB.st[w.w] !== 2), label: scopeName() });
     if (g === 'dueR') return startDueR();
     if (g === 'dueW') return startDueW();
@@ -1686,7 +1729,7 @@
   }
 
   // pool: 단어 배열, 또는 그때그때 범위를 다시 계산하는 함수 (다음 문제를 누를 때 새로 외운 단어를 빼기 위해)
-  function startQuiz({ pool, label, review = false, types = MIX, count = 10, guided = true }) {
+  function startQuiz({ pool, label, review = false, types = MIX, count = 10, guided = true, onFinish }) {
     const getPool = typeof pool === 'function' ? pool : () => pool;
     const first = getPool();
     if (!first.length) return toast('문제를 낼 단어가 없습니다');
@@ -1706,7 +1749,7 @@
       });
       return qs;
     };
-    runQuiz(regen(), label, review, regen);
+    runQuiz(regen(), label, review, regen, onFinish);
   }
 
   // 문제 화면: 위 = 진행 상황, 가운데 = 큰 문제, 아래(엄지 위치) = 보기와 버튼
@@ -1714,7 +1757,7 @@
     const n = [...w].length;
     return n <= 2 ? 96 : n === 3 ? 80 : n === 4 ? 64 : 48;
   };
-  function runQuiz(qs, label, review, regen) {
+  function runQuiz(qs, label, review, regen, onFinish) {
     let i = 0;
     let results = [];
     let writer = null;
@@ -1745,6 +1788,7 @@
         };
 
         const finish = () => {
+          if (onFinish) onFinish();
           const graded = results.filter((r) => !r.practice);
           const practiced = results.length - graded.length;
           const ok = graded.filter((r) => r.ok).length;

@@ -577,3 +577,10 @@ button.rb { cursor: pointer; }
 .mini-link .i { width: 14px; height: 14px; }
 
 .today-note { margin-top: -4px; line-height: 1.5; }
+
+/* 급수·단원 카드: 누르면 학습 시작 */
+.home-level { position: relative; padding: 0; display: block; }
+.hl-main { display: grid; gap: 8px; width: 100%; text-align: left; padding: 16px; border: 0; background: none; border-radius: 18px; color: var(--fg); }
+.home-level > .hl-change { position: absolute; top: 10px; right: 10px; margin: 0; padding: 6px 8px; border: 0; background: none; color: var(--muted); font-size: 13px; display: inline-flex; align-items: center; gap: 2px; }
+.hl-go { justify-self: start; display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 8px 14px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-weight: 650; font-size: 14px; }
+.hl-go .i { width: 14px; height: 14px; fill: currentColor; }
