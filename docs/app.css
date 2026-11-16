@@ -393,3 +393,32 @@ body:has(.layer.has-dock) .toast { bottom: calc(108px + env(safe-area-inset-bott
 @media (prefers-reduced-motion: reduce) { .qz-actions .mini.pop .i { animation: none; } }
 
 .big-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+
+/* 예문: 한국어 문장, 병음 달린 중국어 */
+.qz-prompt.sp { justify-content: flex-start; padding-top: 18px; gap: 12px; }
+.sp-ko { font-size: 23px; font-weight: 700; line-height: 1.45; text-wrap: balance; }
+.sp-zh { font-size: 28px; line-height: 1.5; }
+.sp-mode button { padding: 5px 12px; font-size: 13px; }
+.q-kind .sp-mode { font-weight: 600; }
+.hint-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.hint-chips span { font-size: 20px; padding: 4px 10px; border-radius: 10px; background: var(--soft); border: 1px dashed var(--line); }
+.ruby { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 2px 4px; }
+.rb { display: inline-flex; flex-direction: column; align-items: center; padding: 2px 3px; border: 0; background: none; border-radius: 8px; color: var(--fg); line-height: 1.2; }
+button.rb { cursor: pointer; }
+@media (hover: hover) { button.rb:hover { background: var(--soft); color: var(--fg); } }
+.rp { font-size: 12.5px; color: var(--accent); min-height: 1em; }
+.rz { font-size: 27px; }
+.rb.punct { font-size: 27px; padding-left: 0; padding-right: 0; }
+.rz mark { background: var(--bad-soft); color: var(--bad); border-radius: 4px; text-decoration: underline; text-decoration-color: var(--bad); }
+.ans-label { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .02em; }
+.ans-ko { font-size: 17px; }
+.sp-answer { display: flex; flex-direction: column; gap: 8px; align-items: center; width: 100%; }
+.sp-answer:empty { display: none; }
+.tr-in { width: 100%; font-size: 19px; line-height: 1.5; border-radius: 14px; padding: 12px 14px; resize: none; min-height: 84px; }
+.tr-in.zh { font-size: 22px; }
+.tr-in[readonly] { background: var(--soft); color: var(--muted); }
+.qz-fb.note { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 14px; font-size: 14px; background: var(--known-soft); color: var(--known); }
+.qz-fb.note .fb-t { color: var(--fg); }
+.qz-mid { gap: 12px; }
+.done-ic { width: 88px; height: 88px; border-radius: 50%; display: grid; place-items: center; background: var(--known-soft); color: var(--known); }
+.done-ic .i { width: 44px; height: 44px; stroke-width: 2.2; }

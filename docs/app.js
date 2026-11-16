@@ -53,12 +53,15 @@
     cards: '<rect x="4" y="7" width="12" height="13" rx="2.5"/><path d="M8 4h9.5A2.5 2.5 0 0 1 20 6.5V16"/>',
     square: '<rect x="4.5" y="4.5" width="15" height="15" rx="3.5"/>',
     circle: '<circle cx="12" cy="12" r="8"/>',
+    chat: '<path d="M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-7l-4.5 3.5V16.5H5A1.5 1.5 0 0 1 3.5 15V7A1.5 1.5 0 0 1 5 5.5z"/><path d="M8 10h8M8 13h5"/>',
+    snail: '<path d="M3.5 18h12.5a4 4 0 0 0 4-4V9.5"/><circle cx="10.5" cy="12" r="5"/><path d="M10.5 12a1.8 1.8 0 1 0 1.8-1.8"/><path d="M20 9.5l1.2-3M18.4 9.5l-.8-3"/>',
+    bulb: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V16h5.2v-.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/>',
     circleCheck: '<circle cx="12" cy="12" r="8.5" fill="currentColor"/><path d="M8.3 12.3l2.6 2.6 4.8-5.2" stroke="var(--panel)" stroke-width="2.2"/>',
   };
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-09-0129'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-16-2057'; // tools/bump.js 가 sw.js 와 함께 올림
 
   /* ---------------- 저장 ---------------- */
   const KEY = 'hsk-study-v1';
@@ -69,6 +72,7 @@
     star: {},
     wrong: {}, // 오답노트: { c 틀린 횟수, s 연속 정답, t 마지막 오답, f 처음, ok 해결, log:[{t,ty,a}], m 메모 }
     hist: [], // 문제 기록 [{t, n, ok, scope}]
+    sent: {}, // 예문을 마지막으로 본 시각 { 문장: ts }
   };
   let DB;
   try {
@@ -123,13 +127,13 @@
     pickVoice();
     speechSynthesis.onvoiceschanged = pickVoice;
   }
-  function speak(text) {
+  function speak(text, rate) {
     if (!('speechSynthesis' in window)) return toast('이 브라우저는 발음 듣기를 지원하지 않습니다');
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'zh-CN';
     if (zhVoice) u.voice = zhVoice;
-    u.rate = +DB.set.rate || 0.8;
+    u.rate = rate || +DB.set.rate || 0.8;
     speechSynthesis.speak(u);
   }
 
@@ -145,6 +149,7 @@
 
   /* ---------------- 데이터 ---------------- */
   let WORDS = [];
+  let SENTS = []; // 예문 [{z:[단어], p:[병음], k:한국어, n, o}]
   const BY = new Map();
   const levelOf = (w, track = DB.set.track) => w[track] || 0;
   const levelName = (track, lv) => (track === 'n' && lv === 7 ? '7–9급' : lv + '급');
@@ -263,6 +268,7 @@
         ${tile('notes', 'notes', '오답노트', wrong ? `복습할 오답 ${wrong}개` : '오답 없음')}
         ${tile('write', 'write', '쓰기 연습', '획순대로 직접 쓰기')}
         ${tile('star', 'star', '별표 단어', stars ? `${stars}개` : '아직 없음')}
+        ${tile('sent', 'chat', '문장 연습', '한국어 → 중국어 쓰기 · 말하기')}
       </div>
       <button class="home-settings" data-go="settings">${ic('sliders')}<span>설정 · 백업</span>${ic('chevronRight')}</button>`;
   }
@@ -280,6 +286,7 @@
     if (g === 'write') {
       return startQuiz({ pool: () => levelWords().filter(canWrite).filter((w) => DB.st[w.w] !== 2), label: '쓰기 연습', types: ['write'], count: 10 });
     }
+    if (g === 'sent') return startSentences();
     if (g === 'star') {
       DB.set.filter = 'star';
       save();
@@ -759,8 +766,156 @@
     return false;
   }
 
+
+  /* ---------------- 예문 ---------------- */
+  const sid = (x) => x.z.join('');
+  const sentLv = (x) => x[DB.set.track] || 9;
+  const sentText = (x) => x.z.join('');
+  const PUNCT_RE = /[，。？！、：；“”‘’（）…,.?!\s]/g;
+  // 고른 급수 이하의 예문 중, 오래 안 본 것부터 (가능하면 단어 w 가 들어간 문장)
+  function pickSentences(n, w, avoid = new Set()) {
+    const lv = DB.set.level;
+    let c = SENTS.filter((x) => sentLv(x) <= lv && !avoid.has(sid(x)));
+    if (w) {
+      const withW = c.filter((x) => x.z.includes(w.w));
+      if (withW.length) c = withW;
+    }
+    if (!c.length) c = SENTS.filter((x) => sentLv(x) <= lv);
+    if (!c.length) c = SENTS.slice();
+    // 이번 급수 문장을 조금 더 자주, 오래 안 본 순서
+    const score = (x) => (DB.sent[sid(x)] || 0) - (sentLv(x) === lv ? 3 * 864e5 : 0) + Math.random() * 864e5;
+    return c.sort((a, b) => score(a) - score(b)).slice(0, n);
+  }
+  // 한자 위에 병음. missed: 모범 답안에서 내 답에 없던 글자의 위치(문장부호 뺀 순서)
+  function rubyHTML(x, missed) {
+    let ci = 0;
+    return `<div class="ruby">${x.z
+      .map((t, k) => {
+        if (!x.p[k]) return `<span class="rb punct zh">${esc(t)}</span>`;
+        const chars = [...t]
+          .map((c) => {
+            const m = missed && missed.has(ci);
+            ci++;
+            return m ? `<mark>${esc(c)}</mark>` : esc(c);
+          })
+          .join('');
+        const tag = BY.has(t) ? `button data-w="${esc(t)}"` : 'span';
+        return `<${tag} class="rb"><span class="rp">${esc(x.p[k])}</span><span class="rz zh">${chars}</span></${tag.split(' ')[0]}>`;
+      })
+      .join('')}</div>`;
+  }
+  // 모범 답안 글자 중 내 답과 순서대로 겹치는(LCS) 글자를 찾음
+  function compareZh(model, mine) {
+    const a = [...model.replace(PUNCT_RE, '')];
+    const b = [...mine.replace(PUNCT_RE, '')];
+    const dp = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+    for (let x = a.length - 1; x >= 0; x--)
+      for (let y = b.length - 1; y >= 0; y--) dp[x][y] = a[x] === b[y] ? dp[x + 1][y + 1] + 1 : Math.max(dp[x + 1][y], dp[x][y + 1]);
+    const hit = new Set();
+    for (let x = 0, y = 0; x < a.length && y < b.length; ) {
+      if (a[x] === b[y]) {
+        hit.add(x);
+        x++;
+        y++;
+      } else if (dp[x + 1][y] >= dp[x][y + 1]) x++;
+      else y++;
+    }
+    const missed = new Set(a.map((_, k) => k).filter((k) => !hit.has(k)));
+    return { missed, pct: a.length ? Math.round((hit.size / a.length) * 100) : 0, exact: a.join('') === b.join('') };
+  }
+
+  // 문장 연습: 한국어를 보고 중국어로 쓰기(노트) / 말하기. 채점 없음
+  function startSentences() {
+    if (!SENTS.length) return toast('예문을 불러오는 중이에요. 잠시 후 다시 눌러 주세요');
+    let list = pickSentences(10);
+    let i = 0;
+    let shown = false;
+    openLayer({
+      title: '문장 연습',
+      cls: 'quiz-layer',
+      render: (L) => {
+        const draw = () => {
+          if (i >= list.length) {
+            L.body.innerHTML = `<div class="qz"><div class="qz-prompt result">
+                <div class="done-ic">${ic('check')}</div>
+                <div class="result-msg">${list.length}문장 연습 끝</div>
+                <div class="muted small">문장 속 모르는 단어는 단어를 눌러 별표해 두세요</div></div>
+              <div class="qz-bottom"><button class="primary big-btn" data-act="more">다음 ${list.length}문장 ${ic('chevronRight')}</button>
+              <button class="big-btn" data-act="home">${ic('home')} 홈으로</button></div></div>`;
+            return;
+          }
+          const x = list[i];
+          const mode = DB.set.spMode || 'write';
+          L.body.innerHTML = `<div class="qz">
+            <div class="qz-top"><div class="q-progress"><i style="width:${(i / list.length) * 100}%"></i></div>
+              <div class="q-kind"><div class="seg sp-mode"><button data-mode="write" class="${mode === 'write' ? 'on' : ''}">쓰기</button><button data-mode="speak" class="${mode === 'speak' ? 'on' : ''}">말하기</button></div><span>${i + 1} / ${list.length}</span></div></div>
+            <div class="qz-prompt sp">
+              <div class="sp-ko">${esc(x.k)}</div>
+              <div class="qz-ask">${mode === 'write' ? '노트에 중국어로 써 보세요' : '중국어로 소리 내어 말해 보세요'}</div>
+              <div class="sp-hint"></div>
+              <div class="sp-answer"></div>
+            </div>
+            <div class="qz-mid"></div>
+            <div class="qz-bottom"><div class="qz-actions">
+              <button class="mini" data-act="hint" aria-label="힌트: 쓰이는 단어" title="힌트">${ic('bulb')}</button>
+              <button class="primary grow" data-act="reveal">정답 보기</button></div></div></div>`;
+          shown = false;
+        };
+        const reveal = () => {
+          const x = list[i];
+          shown = true;
+          DB.sent[sid(x)] = Date.now();
+          save();
+          $('.sp-hint', L.body).innerHTML = '';
+          $('.sp-answer', L.body).innerHTML = rubyHTML(x);
+          $('.qz-mid', L.body).innerHTML = `<button class="replay" data-act="say" aria-label="듣기" title="듣기">${ic('sound')}</button><button class="replay" data-act="slow" aria-label="느리게 듣기" title="느리게 듣기">${ic('snail')}</button>`;
+          $('.qz-actions', L.body).innerHTML = `<button class="primary grow" data-act="next">${i + 1 >= list.length ? '끝' : '다음 ' + ic('chevronRight')}</button>`;
+          speak(sentText(x));
+        };
+        draw();
+        L.body.onclick = (e) => {
+          const wb = e.target.closest('[data-w]');
+          if (wb) return openWord(wb.dataset.w);
+          const b = e.target.closest('button');
+          if (!b) return;
+          if (b.dataset.mode) {
+            DB.set.spMode = b.dataset.mode;
+            save();
+            if (!shown) return draw();
+            $$('.sp-mode button', L.body).forEach((y) => y.classList.toggle('on', y.dataset.mode === b.dataset.mode));
+            return;
+          }
+          const a = b.dataset.act;
+          const x = list[i];
+          if (a === 'hint') {
+            const hs = shuffle(x.z.filter((t, k) => x.p[k]).map((t, k) => t));
+            $('.sp-hint', L.body).innerHTML = `<div class="hint-chips">${hs.map((t) => `<span class="zh">${esc(t)}</span>`).join('')}</div>`;
+            b.disabled = true;
+          }
+          if (a === 'reveal') reveal();
+          if (a === 'say') speak(sentText(x));
+          if (a === 'slow') speak(sentText(x), 0.5);
+          if (a === 'next') {
+            i++;
+            draw();
+          }
+          if (a === 'more') {
+            list = pickSentences(10);
+            i = 0;
+            draw();
+          }
+          if (a === 'home') {
+            closeTopLayer();
+            setTimeout(() => goTab('home'), 0);
+          }
+        };
+      },
+    });
+  }
+
   /* ---------------- 문제 ---------------- */
-  const TYPE_NAME = { meaning: '뜻 고르기', word: '한자 고르기', pinyin: '병음 고르기', listen: '듣고 고르기', write: '직접 쓰기' };
+  const TYPE_NAME = { meaning: '뜻 고르기', word: '한자 고르기', pinyin: '병음 고르기', listen: '듣고 고르기', write: '직접 쓰기', trzh: '작문 (한→중)', trko: '번역 (중→한)' };
+  const isTr = (t) => t === 'trzh' || t === 'trko';
   function scopePool(scope) {
     const lv = levelWords();
     if (scope === 'level' || scope === 'new') return lv.filter((w) => DB.st[w.w] !== 2); // 외운 단어는 빼고
@@ -849,12 +1004,17 @@
 
   function buildQuestions(pool, types, count) {
     const picked = shuffle(pool.slice()).slice(0, count);
+    const usedS = new Set();
     return picked.map((w) => {
-      let ts = types.filter((t) => t !== 'write' || canWrite(w));
+      let ts = types.filter((t) => (t !== 'write' || canWrite(w)) && (!isTr(t) || SENTS.length));
       if (!ts.length) ts = ['meaning'];
       const type = ts[(Math.random() * ts.length) | 0];
       const q = { w, type };
-      if (type !== 'write') q.opts = shuffle([w, ...distractors(w, type)]);
+      if (isTr(type)) {
+        // 그 단어가 들어간 예문을 우선 (없으면 같은 급수의 다른 예문)
+        q.s = pickSentences(1, w, usedS)[0];
+        usedS.add(sid(q.s));
+      } else if (type !== 'write') q.opts = shuffle([w, ...distractors(w, type)]);
       return q;
     });
   }
@@ -907,30 +1067,35 @@
         };
         const remake = (r) => {
           const q = { w: r.w, type: r.type };
-          if (r.type !== 'write') q.opts = shuffle([r.w, ...distractors(r.w, r.type)]);
+          if (isTr(r.type)) q.s = r.s;
+          else if (r.type !== 'write') q.opts = shuffle([r.w, ...distractors(r.w, r.type)]);
           return q;
         };
 
         const finish = () => {
-          const ok = results.filter((r) => r.ok).length;
-          const n = results.length;
-          DB.hist.unshift({ t: Date.now(), n, ok, label });
-          DB.hist = DB.hist.slice(0, 50);
+          const graded = results.filter((r) => !r.practice);
+          const practiced = results.length - graded.length;
+          const ok = graded.filter((r) => r.ok).length;
+          const n = graded.length;
+          if (n) {
+            DB.hist.unshift({ t: Date.now(), n, ok, label });
+            DB.hist = DB.hist.slice(0, 50);
+          }
           save();
-          const wrongs = results.filter((r) => !r.ok);
+          const wrongs = graded.filter((r) => !r.ok);
           const solved = results.filter((r) => r.solved).length;
-          const pct = n ? ok / n : 0;
+          const pct = n ? ok / n : 1;
           const C = 2 * Math.PI * 52;
-          const msg = retryRound ? (ok === n ? '틀린 문제를 모두 맞혔어요' : '틀린 문제 다시 풀기 끝') : ok === n ? '전부 맞혔어요' : pct >= 0.8 ? '잘했어요' : pct >= 0.5 ? '조금만 더' : '틀린 단어부터 다시 봐요';
+          const msg = !n ? '문장 연습 끝' : retryRound ? (ok === n ? '틀린 문제를 모두 맞혔어요' : '틀린 문제 다시 풀기 끝') : ok === n ? '전부 맞혔어요' : pct >= 0.8 ? '잘했어요' : pct >= 0.5 ? '조금만 더' : '틀린 단어부터 다시 봐요';
           const uniq = [...new Map(wrongs.map((r) => [r.w.w, r.w])).values()];
           L.body.innerHTML = `<div class="qz">
             <div class="qz-prompt result">
               <div class="ring">
                 <svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" class="ring-bg"/><circle cx="60" cy="60" r="52" class="ring-fg" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - pct)}"/></svg>
-                <div class="ring-num"><b>${ok}</b><span>/ ${n}</span></div>
+                <div class="ring-num">${n ? `<b>${ok}</b><span>/ ${n}</span>` : `<b>${practiced}</b><span>문장</span>`}</div>
               </div>
               <div class="result-msg">${msg}</div>
-              <div class="result-stats"><span>정답 <b>${ok}</b></span><span>오답 <b>${wrongs.length}</b></span>${solved ? `<span>오답 해결 <b>${solved}</b></span>` : ''}</div>
+              <div class="result-stats">${n ? `<span>정답 <b>${ok}</b></span><span>오답 <b>${wrongs.length}</b></span>` : ''}${solved ? `<span>오답 해결 <b>${solved}</b></span>` : ''}${practiced ? `<span>문장 연습 <b>${practiced}</b></span>` : ''}</div>
               ${uniq.length ? `<div class="wrong-chips" aria-label="틀린 단어">${uniq.map((w) => `<button class="zh" data-w="${esc(w.w)}">${esc(w.w)}</button>`).join('')}</div><div class="muted small">틀린 단어는 오답노트에 담겼어요 · 누르면 단어 보기</div>` : ''}
             </div>
             <div class="qz-bottom">${
@@ -1005,6 +1170,7 @@
           const q = qs[i];
           const w = q.w;
           if (q.type === 'write') return showWrite(q);
+          if (isTr(q.type)) return showTr(q);
           let prompt = '';
           const big = `<div class="qz-zh zh" style="font-size:${zhSize(w.w)}px">${esc(w.w)}</div>`;
           if (q.type === 'meaning') prompt = `${big}<div class="qz-ask">이 단어의 뜻은?</div>`;
@@ -1022,6 +1188,53 @@
               <div class="qz-actions"><button class="ghost" data-act="idk">모르겠어요</button></div>
             </div></div>`;
           if (q.type === 'listen' || (DB.set.autoSpeak && q.type !== 'word' && q.type !== 'pinyin')) setTimeout(() => speak(w.w), 150);
+        };
+
+
+        // 문장 번역·작문 입력 (채점 없이 모범 답안과 비교)
+        const showTr = (q) => {
+          const x = q.s;
+          const toZh = q.type === 'trzh';
+          L.body.innerHTML = `<div class="qz">${head(q)}
+            <div class="qz-prompt sp">
+              ${toZh ? `<div class="sp-ko">${esc(x.k)}</div><div class="qz-ask">중국어로 옮겨 써 보세요</div>` : `<div class="sp-zh zh">${esc(sentText(x))}</div><div class="qz-ask">한국어로 옮겨 써 보세요</div>`}
+              <textarea id="trIn" class="tr-in ${toZh ? 'zh' : ''}" rows="2" placeholder="${toZh ? '중국어로 입력' : '한국어로 입력'}" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+              <div class="sp-answer"></div>
+            </div>
+            <div class="qz-mid">${toZh ? '' : replayBtn()}</div>
+            <div class="qz-fb"></div>
+            <div class="qz-bottom"><div class="qz-actions"><button class="ghost" data-act="idk">모르겠어요</button><button class="primary grow" data-act="trSubmit">확인</button></div></div></div>`;
+          setTimeout(() => $('#trIn', L.body) && $('#trIn', L.body).focus({ preventScroll: true }), 50);
+          if (!toZh && DB.set.autoSpeak) setTimeout(() => speak(sentText(x)), 150);
+        };
+        const revealTr = (q) => {
+          const x = q.s;
+          const toZh = q.type === 'trzh';
+          const ta = $('#trIn', L.body);
+          const mine = ta.value.trim();
+          ta.readOnly = true;
+          answered = true;
+          results.push({ w: q.w, type: q.type, s: x, practice: true });
+          DB.sent[sid(x)] = Date.now();
+          save();
+          let line = '';
+          if (toZh) {
+            const c = compareZh(sentText(x), mine);
+            $('.sp-answer', L.body).innerHTML = `<div class="ans-label">모범 답안</div>${rubyHTML(x, mine ? c.missed : null)}<div class="ans-ko muted small">${esc(x.k)}</div>`;
+            line = !mine ? '모범 답안을 보고 노트에 따라 써 보세요' : c.exact ? '모범 답안과 똑같아요' : `모범 답안과 겹치는 글자 ${c.pct}% · 표시된 글자가 내 답에 없어요`;
+          } else {
+            $('.sp-zh', L.body).outerHTML = rubyHTML(x); // 원문 자리에 병음을 달아서
+            $('.sp-answer', L.body).innerHTML = `<div class="ans-label">모범 답안</div><div class="ans-ko">${esc(x.k)}</div>`;
+            line = mine ? '뜻이 같으면 다르게 써도 괜찮아요' : '모범 답안을 확인해 보세요';
+          }
+          if (!mine) ta.remove();
+          const fb = $('.qz-fb', L.body);
+          fb.className = 'qz-fb note';
+          fb.innerHTML = `<span class="fb-mark">${ic('chat')}</span><span class="fb-t">${line}</span>`;
+          $('.qz', L.body).classList.add('answered');
+          $('.qz-mid', L.body).innerHTML = `${replayBtn()}<button class="replay" data-act="slow" aria-label="느리게 듣기" title="느리게 듣기">${ic('snail')}</button>`;
+          $('.qz-actions', L.body).innerHTML = `<button class="primary grow" data-act="next">${i + 1 >= qs.length ? '결과 보기' : '다음 ' + ic('chevronRight')}</button>`;
+          if (toZh) speak(sentText(x));
         };
 
         const showWrite = (q) => {
@@ -1084,8 +1297,10 @@
           if (!b) return;
           const q = qs[i];
           if (!q) return;
+          if (b.dataset.w && !b.dataset.act) return openWord(b.dataset.w);
           const act = b.dataset.act;
-          if (act === 'speakQ' || act === 'speakAns') return speak(q.w.w);
+          if (act === 'speakQ' || act === 'speakAns') return speak(q.s ? sentText(q.s) : q.w.w);
+          if (act === 'slow') return speak(q.s ? sentText(q.s) : q.w.w, 0.5);
           if (act === 'qStar' || act === 'qKnown') {
             const w = q.w;
             if (act === 'qStar') {
@@ -1107,6 +1322,10 @@
             return show();
           }
           if (answered) return;
+          if (isTr(q.type) && (act === 'trSubmit' || act === 'idk')) {
+            if (act === 'idk') $('#trIn', L.body).value = '';
+            return revealTr(q);
+          }
           if (act === 'idk') {
             if (q.type === 'write') {
               if (writer && writer.cancelQuiz) writer.cancelQuiz();
@@ -1405,6 +1624,10 @@
     try {
       const r = await fetch('data/words.json');
       WORDS = await r.json();
+      fetch('data/sentences.json')
+        .then((r) => r.json())
+        .then((d) => (SENTS = d))
+        .catch(() => {});
     } catch (e) {
       $('#wordList').innerHTML = '<li class="empty" style="display:block">단어 데이터를 불러오지 못했습니다. 인터넷 연결을 확인하고 새로고침해 주세요.</li>';
       return;
