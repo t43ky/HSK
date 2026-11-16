@@ -553,3 +553,25 @@ button.rb { cursor: pointer; }
 .ord-right { width: 100%; }
 
 .ord-pool .ord-chip:disabled { visibility: hidden; }
+
+/* 백지 테스트 */
+.blank-help { margin: 0 0 12px; line-height: 1.6; }
+.blank-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.blank-list li { display: grid; grid-template-columns: 28px 1fr auto auto; align-items: center; gap: 10px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.blank-list .bn { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; text-align: right; }
+.blank-list .bk { font-size: 15px; min-width: 0; }
+.blank-list .bhide { grid-column: span 2; width: 96px; height: 30px; border-radius: 8px; background: var(--soft); border: 1px dashed var(--line); justify-self: end; }
+.blank-list .ba { display: flex; flex-direction: column; align-items: flex-end; border: 0; background: none; padding: 0 2px; color: var(--fg); }
+.blank-list .ba .zh { font-size: 22px; line-height: 1.2; }
+.blank-list .ba .py { font-size: 12px; color: var(--accent); }
+.blank-list .bstar { width: 40px; height: 40px; padding: 0; display: grid; place-items: center; border-radius: 50%; color: var(--muted); }
+.blank-list .bstar .i { width: 20px; height: 20px; }
+.blank-list .bstar.on { color: var(--star); border-color: var(--star); background: var(--star-soft); }
+.blank-bottom { display: grid; gap: 8px; margin-top: 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+/* 문형 바꿔 쓰기 */
+.task-box { display: grid; gap: 4px; margin-top: 16px; padding: 12px 14px; border-radius: 14px; background: var(--known-soft); color: var(--fg); line-height: 1.6; }
+.task-box b { color: var(--known); }
+.task-box.ok { background: var(--ok-soft); }
+.task-box.ok b { color: var(--ok); }
+.mini-link { font-size: 12px; padding: 2px 6px; display: inline-flex; align-items: center; gap: 3px; vertical-align: 1px; }
+.mini-link .i { width: 14px; height: 14px; }

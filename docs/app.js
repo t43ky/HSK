@@ -67,7 +67,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-17-0318'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-17-0322'; // tools/bump.js 가 sw.js 와 함께 올림
 
   /* ---------------- 저장 ---------------- */
   const KEY = 'hsk-study-v1';
@@ -516,6 +516,7 @@
       : `<li class="empty" style="display:block;cursor:default">${$('#wordSearch').value.trim() ? '검색 결과가 없습니다' : fav ? '즐겨찾기한 단어가 없습니다<br><span class="small">단어 화면 아래의 별을 누르면 여기에 모입니다</span>' : '해당하는 단어가 없습니다'}</li>`;
     updateMore();
     $('#startCards').disabled = !listCache.length;
+    $('#startBlank').disabled = !listCache.length;
     $('#startLevelQuiz').disabled = listCache.length < 4;
     if (keepScroll) window.scrollTo(0, y);
   }
@@ -535,6 +536,7 @@
     if (li) openWord(li.dataset.w);
   };
   $('#startCards').onclick = () => startCards(listCache.slice());
+  $('#startBlank').onclick = () => startBlankTest(listCache.slice());
   $('#startLevelQuiz').onclick = () => {
     const snap = listCache.slice();
     const keepKnown = DB.set.filter === 'known'; // '외운 단어' 목록으로 풀 때만 외운 단어 포함
@@ -1186,6 +1188,144 @@
   }
 
 
+
+  /* ---------------- 백지 테스트: 뜻만 보고 노트에 쓰고, 한 번에 정답 확인 ---------------- */
+  function startBlankTest(src) {
+    // 안 외운 단어 먼저, 최대 20개 (단원을 고르면 그 단원 20개)
+    const list = src
+      .slice()
+      .sort((a, b) => (DB.st[a.w] === 2) - (DB.st[b.w] === 2))
+      .slice(0, 20);
+    if (!list.length) return toast('테스트할 단어가 없습니다');
+    let shown = false;
+    openLayer({
+      title: '백지 테스트',
+      cls: 'blank-layer',
+      render: (L) => {
+        const draw = () => {
+          L.body.innerHTML = `
+            <p class="blank-help">${shown ? '노트와 비교해 보세요. 못 쓴 단어는 별을 눌러 즐겨찾기해 두세요.' : '뜻을 보고 노트에 <b>한자와 병음</b>을 써 보세요. 다 쓰면 아래에서 정답을 한 번에 확인합니다.'}</p>
+            <ol class="blank-list">${list
+              .map(
+                (w, k) => `<li>
+                  <span class="bn">${k + 1}</span>
+                  <span class="bk">${esc(meaning(w))}</span>
+                  ${
+                    shown
+                      ? `<button class="ba" data-w="${esc(w.w)}"><span class="zh">${esc(w.w)}</span><span class="py">${esc(w.p)}</span></button>
+                         <button class="bstar ${DB.star[w.w] ? 'on' : ''}" data-star="${esc(w.w)}" aria-label="즐겨찾기">${ic(DB.star[w.w] ? 'starFill' : 'star')}</button>`
+                      : '<span class="bhide"></span>'
+                  }
+                </li>`,
+              )
+              .join('')}</ol>
+            <div class="blank-bottom">${
+              shown
+                ? `<button class="primary big-btn" data-act="again">${ic('redo')} 같은 단어로 다시</button><button class="big-btn" data-act="close">끝내기</button>`
+                : `<button class="primary big-btn" data-act="reveal">다 썼어요 · 정답 보기</button>`
+            }</div>`;
+        };
+        draw();
+        L.body.onclick = (e) => {
+          const st = e.target.closest('[data-star]');
+          if (st) {
+            const w = BY.get(st.dataset.star);
+            if (DB.star[w.w]) delete DB.star[w.w];
+            else DB.star[w.w] = Date.now();
+            save();
+            st.classList.toggle('on', !!DB.star[w.w]);
+            st.innerHTML = ic(DB.star[w.w] ? 'starFill' : 'star');
+            return;
+          }
+          const wb = e.target.closest('[data-w]');
+          if (wb) return openWord(wb.dataset.w);
+          const b = e.target.closest('[data-act]');
+          if (!b) return;
+          const a = b.dataset.act;
+          if (a === 'reveal') {
+            shown = true;
+            tick(list.length);
+            save();
+            draw();
+            L.el.scrollTo(0, 0);
+          }
+          if (a === 'again') {
+            shown = false;
+            shuffle(list);
+            draw();
+            L.el.scrollTo(0, 0);
+          }
+          if (a === 'close') closeTopLayer();
+        };
+      },
+    });
+  }
+
+  /* ---------------- 문형 바꿔 쓰기: 문형 + 예문 + 재료 단어로 노트에 3문장 ---------------- */
+  function startPatternWrite(g) {
+    const pickMaterials = () => {
+      // 최근에 외운 단어(복습 일정이 짧은 것)를 우선, 없으면 지금 범위의 단어
+      const known = WORDS.filter((w) => DB.st[w.w] === 2 && w.k && [...w.w].length <= 3);
+      const pool = known.length >= 6 ? known : scopeWords().filter((w) => w.k && [...w.w].length <= 3);
+      return shuffle(pool.slice()).slice(0, 6);
+    };
+    let mats = pickMaterials();
+    let done = false;
+    openLayer({
+      title: '문형 바꿔 쓰기',
+      render: (L) => {
+        const draw = () => {
+          L.body.innerHTML = `
+            <div class="g-pattern zh">${esc(g.f)}</div>
+            <p class="muted small" style="margin:8px 0 0">${esc(g.t)}</p>
+            <h3>예문 (먼저 노트에 한 번 베껴 쓰기)</h3>
+            <div class="ex-list">${g.ex.slice(0, 1).map((x) => `<div class="ex" data-say="${esc(sentText(x))}">${rubyHTML(x)}<div class="ex-ko">${esc(x.k)}</div></div>`).join('')}</div>
+            <h3>재료 단어 <button class="ghost mini-link" data-act="reroll">${ic('redo')} 다른 단어</button></h3>
+            <div class="rel">${mats.map((x) => `<button data-w="${esc(x.w)}"><span class="zh">${esc(x.w)}</span><span>${esc(meaning(x).split(/[;,]/)[0])}</span></button>`).join('')}</div>
+            <div class="task-box">
+              <b>과제</b>
+              <span>위 문형에 재료 단어를 넣어 <b>노트에 3문장</b>을 만들어 보세요. 단어를 누르면 뜻과 획순을 볼 수 있어요.</span>
+            </div>
+            ${
+              done
+                ? `<div class="task-box ok"><b>확인 방법</b><span>예문과 어순을 비교해 보세요. 문장을 소리 내어 읽어 보고, 자신 없는 문장은 ‘작문 · 번역’에서 비슷한 예문과 맞춰 볼 수 있어요.</span></div>
+                   <div class="blank-bottom"><button class="primary big-btn" data-act="more">${ic('redo')} 다른 재료로 한 번 더</button><button class="big-btn" data-act="close">끝내기</button></div>`
+                : `<div class="blank-bottom"><button class="primary big-btn" data-act="done">3문장 다 썼어요</button></div>`
+            }`;
+        };
+        draw();
+        L.body.onclick = (e) => {
+          const wb = e.target.closest('[data-w]');
+          if (wb) return openWord(wb.dataset.w);
+          const ex = e.target.closest('[data-say]');
+          if (ex) return speak(ex.dataset.say);
+          const b = e.target.closest('[data-act]');
+          if (!b) return;
+          const a = b.dataset.act;
+          if (a === 'reroll') {
+            mats = pickMaterials();
+            draw();
+          }
+          if (a === 'done') {
+            done = true;
+            tick(3);
+            const st = (DB.gram[g.id] = DB.gram[g.id] || {});
+            st.w = (st.w || 0) + 1;
+            save();
+            draw();
+          }
+          if (a === 'more') {
+            done = false;
+            mats = pickMaterials();
+            draw();
+            L.el.scrollTo(0, 0);
+          }
+          if (a === 'close') closeTopLayer();
+        };
+      },
+    });
+  }
+
   /* ---------------- 문법 ---------------- */
   const gLevel = () => DB.set.gLevel || 1;
   const gStat = (g) => DB.gram[g.id] || {};
@@ -1245,6 +1385,7 @@
           <div class="actions" style="margin-top:16px">
             <button class="primary" data-act="gap">이 문법 빈칸 문제</button>
             <button data-act="order">예문 어순 맞추기</button>
+            <button data-act="pw">${ic('write')} 노트에 3문장 만들기</button>
           </div>`;
         L.body.onclick = (e) => {
           const wb = e.target.closest('[data-w]');
@@ -1255,6 +1396,7 @@
           if (!b) return;
           if (b.dataset.act === 'gap') runQuiz(shuffle(g.q.map((it) => ({ type: 'gap', g, it }))), g.t, false);
           if (b.dataset.act === 'order') runQuiz(shuffle(g.ex.map((x) => ({ type: 'order', g, s: x }))), g.t + ' · 어순', false);
+          if (b.dataset.act === 'pw') startPatternWrite(g);
         };
       },
     });
