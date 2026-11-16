@@ -67,7 +67,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-17-0348'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-17-0350'; // tools/bump.js 가 sw.js 와 함께 올림
 
   // 화면(HTML)과 앱 파일 버전이 다르면(예전 저장본이 섞이면) 저장본을 비우고 한 번 새로 고침
   (() => {
@@ -196,23 +196,53 @@
 
   /* ---------------- 탭 ---------------- */
   let curTab = 'home';
+  // 큰 갈래(단어·문법) 안의 [목록 · 연습 · 문제]
+  const SUB = {
+    words: ['word', 'list'],
+    wprac: ['word', 'prac'],
+    wquiz: ['word', 'quiz'],
+    grammar: ['gram', 'list'],
+    gprac: ['gram', 'prac'],
+    gquiz: ['gram', 'quiz'],
+  };
+  const SECTION = { wprac: 'practice', gprac: 'practice', wquiz: 'quiz', gquiz: 'quiz' };
   function showTab(name) {
-    if (!['home', 'words', 'grammar', 'practice', 'quiz', 'notes', 'settings'].includes(name)) name = 'home';
+    if (name === 'practice') name = 'wprac';
+    if (name === 'quiz') name = 'wquiz';
+    if (!['home', 'words', 'wprac', 'wquiz', 'grammar', 'gprac', 'gquiz', 'notes', 'settings'].includes(name)) name = 'home';
     curTab = name;
-    $$('main > section').forEach((s) => (s.hidden = s.dataset.tab !== name));
-    const TITLE = { home: 'HSK 단어장', words: '단어장', grammar: '문법', practice: '연습', quiz: '문제', notes: '오답노트', settings: '설정' };
-    $('.logo').textContent = TITLE[name];
+    const sec = SECTION[name] || name;
+    $$('main > section').forEach((s) => (s.hidden = s.dataset.tab !== sec));
+    const sub = SUB[name];
+    const TITLE = { home: 'HSK 단어장', notes: '오답노트', settings: '설정' };
+    $('.logo').textContent = sub ? (sub[0] === 'word' ? '단어' : '문법') : TITLE[name];
     $('#homeBtn').hidden = name === 'home';
+    const nav = $('#subnav');
+    nav.hidden = !sub;
+    if (sub) {
+      const base = sub[0] === 'word' ? ['words', 'wprac', 'wquiz'] : ['grammar', 'gprac', 'gquiz'];
+      nav.innerHTML = [
+        [base[0], sub[0] === 'word' ? '단어장' : '문법 목록', 'list'],
+        [base[1], '연습', 'prac'],
+        [base[2], '문제', 'quiz'],
+      ]
+        .map(([t, label, k]) => `<button data-sub="${t}" class="${k === sub[1] ? 'on' : ''}">${label}</button>`)
+        .join('');
+    }
     if (name === 'home') renderHome();
     if (name === 'words') renderWords();
     if (name === 'grammar') renderGrammar();
-    if (name === 'practice') renderPractice();
-    if (name === 'quiz') renderQuizTab();
+    if (name === 'wprac' || name === 'gprac') renderPractice(sub[0]);
+    if (name === 'wquiz' || name === 'gquiz') renderQuizTab(sub[0]);
     if (name === 'notes') renderNotes();
     if (name === 'settings') renderSettings();
     window.scrollTo(0, 0);
   }
   $('#homeBtn').onclick = () => goTab('home');
+  $('#subnav').onclick = (e) => {
+    const b = e.target.closest('[data-sub]');
+    if (b) goTab(b.dataset.sub);
+  };
 
   /* ---------------- 레이어 (뒤로 가기 지원) ---------------- */
   const stack = [];
@@ -332,9 +362,9 @@
     updateBadge();
     if (curTab === 'home') renderHome();
     if (curTab === 'grammar') renderGrammar();
-    if (curTab === 'practice') renderPractice();
+    if (curTab === 'wprac' || curTab === 'gprac') renderPractice(SUB[curTab][0]);
     if (curTab === 'words') renderWords(true);
-    if (curTab === 'quiz') renderQuizTab();
+    if (curTab === 'wquiz' || curTab === 'gquiz') renderQuizTab(SUB[curTab][0]);
     if (curTab === 'notes') renderNotes();
   }
 
@@ -438,10 +468,8 @@
       ${todayCard()}
       ${levelCard()}
       <div class="tiles">
-        ${tile('words', 'book', '단어장', `${ws.length}단어${favs ? ` · 즐겨찾기 ${favs}` : ''}`)}
-        ${tile('grammar', 'layers', '문법', `HSK ${DB.set.gLevel || 1}급 문법 ${GRAM.filter((g) => g.lv === (DB.set.gLevel || 1)).length || ''}`)}
-        ${tile('practice', 'write', '연습', '카드 · 쓰기 · 노트 · 작문')}
-        ${tile('quiz', 'pencil', '문제', left ? `안 외운 단어 ${left}개` : '복습할 차례')}
+        ${tile('words', 'book', '단어', `단어장 · 연습 · 문제${favs ? ` · 즐겨찾기 ${favs}` : ''}`)}
+        ${tile('grammar', 'layers', '문법', '문법 목록 · 연습 · 문제')}
       </div>
       <button class="home-settings" data-go="notes">${ic('notes')}<span>오답노트${wrong ? ` <b class="note-n">${wrong}</b>` : ''}</span>${ic('chevronRight')}</button>
       <button class="home-settings" data-go="settings">${ic('sliders')}<span>설정 · 백업</span>${ic('chevronRight')}</button>`;
@@ -1252,7 +1280,8 @@
     return shuffle((left.length ? left : lv).slice()).slice(0, n).map(wordItem);
   }
   // 따라쓰기: 단어 또는 문장을 보고(한자·병음·뜻) 노트에 따라 쓰기. 채점 없음
-  function startSentences() {
+  function startSentences(start) {
+    if (start) DB.set.copyMode = start;
     const mode = () => (DB.set.copyMode === 'sent' ? 'sent' : 'word');
     const make = () => (mode() === 'sent' ? pickSentences(10) : pickCopyWords(10));
     if (mode() === 'sent' && !SENTS.length) DB.set.copyMode = 'word';
@@ -1484,13 +1513,7 @@
       ? '<div class="empty">문법을 불러오는 중…</div>'
       : `
       <div class="chips" id="gramLv">${lvs.map((l) => `<button data-glv="${l}" class="${l === lv ? 'on' : ''}">HSK ${l}급</button>`).join('')}</div>
-      <div class="qmain">
-        <div class="qmain-head"><span class="tile-ic">${ic('blocks')}</span><span><b>HSK ${lv}급 문법 ${list.length}개</b><span class="muted small">빈칸 문제를 2번 맞히면 익힘 표시 · 익힘 ${done}개</span></span></div>
-        <div class="qmain-btns">
-          <button class="primary" data-gq="gap">빈칸 문제</button>
-          <button data-gq="order">어순 맞추기</button>
-        </div>
-      </div>
+      <p class="muted small" style="margin:0">HSK ${lv}급 문법 ${list.length}개 · 익힘 ${done}개 (빈칸 문제를 2번 맞히면 익힘)</p>
       <ul class="gram-list">${list
         .map((g) => {
           const st = gStat(g);
@@ -1626,7 +1649,8 @@
   }
   const lvLabel = () => `HSK ${DB.set.track === 'n' ? '3.0' : '2.0'} ${levelName(DB.set.track, DB.set.level)}`;
   // 문제: 채점되고 외움·쓸 수 있음·오답노트에 반영되는 것
-  function renderQuizTab() {
+  function renderQuizTab(kind = 'word') {
+    if (kind === 'gram') return renderGramQuiz();
     const ws = scopeWords();
     const left = ws.filter((w) => DB.st[w.w] !== 2).length;
     const wLeft = ws.filter((w) => canWrite(w) && !canWriteW(w)).length;
@@ -1650,11 +1674,31 @@
           <button data-go="dueW" ${dw ? '' : 'disabled'}>오늘 쓰기 복습 <b>${dw}</b></button>
         </div>
       </div>
-      <div class="tiles">
+      <div class="tiles one">
         ${tile('tone', 'wave', '성조', '듣고 성조 고르기')}
-        ${tile('gram', 'blocks', '문법', '빈칸 · 어순 맞추기')}
       </div>`;
     const h = DB.hist.slice(0, 8);
+    $('#quizHistory').innerHTML = h.length
+      ? h.map((r) => `${fmtDate(r.t)} · ${esc(r.label || '')} · <b style="color:var(--fg)">${r.ok}/${r.n}</b>`).join('<br>')
+      : '아직 기록이 없습니다';
+  }
+  // 문법 문제: 급수 고르고 빈칸 / 어순
+  function renderGramQuiz() {
+    const lv = gLevel();
+    const list = GRAM.filter((g) => g.lv === lv);
+    const done = list.filter((g) => (gStat(g).ok || 0) >= 2).length;
+    $('#quizBox').innerHTML = !GRAM.length
+      ? '<div class="empty">문법을 불러오는 중…</div>'
+      : `
+      <div class="chips">${[...new Set(GRAM.map((g) => g.lv))].sort().map((l) => `<button data-glv="${l}" class="${l === lv ? 'on' : ''}">HSK ${l}급</button>`).join('')}</div>
+      <div class="qmain">
+        <div class="qmain-head"><span class="tile-ic">${ic('blocks')}</span><span><b>HSK ${lv}급 문법 ${list.length}개</b><span class="muted small">${lv}급 이하에서 10문제 · 익힘 ${done}개</span></span></div>
+        <div class="qmain-btns">
+          <button class="primary" data-gq="gap">빈칸 문제</button>
+          <button data-gq="order">어순 맞추기</button>
+        </div>
+      </div>`;
+    const h = DB.hist.filter((r) => (r.label || '').startsWith('문법')).slice(0, 8);
     $('#quizHistory').innerHTML = h.length
       ? h.map((r) => `${fmtDate(r.t)} · ${esc(r.label || '')} · <b style="color:var(--fg)">${r.ok}/${r.n}</b>`).join('<br>')
       : '아직 기록이 없습니다';
@@ -1666,6 +1710,18 @@
     return knownFirst.length >= 10 ? knownFirst : left;
   };
   $('#quizBox').onclick = (e) => {
+    const lvb = e.target.closest('[data-glv]');
+    if (lvb) {
+      DB.set.gLevel = +lvb.dataset.glv;
+      save();
+      return renderGramQuiz();
+    }
+    const gq = e.target.closest('[data-gq]');
+    if (gq) {
+      DB.set.gMode = gq.dataset.gq;
+      save();
+      return startGrammarQuiz();
+    }
     const b = e.target.closest('[data-go]');
     if (!b || b.disabled) return;
     const g = b.dataset.go;
@@ -1680,30 +1736,46 @@
   };
 
   // 연습: 채점 없이 익히는 것
-  function renderPractice() {
+  // 연습: 채점 없이 익히는 것 (단어 / 문법)
+  function renderPractice(kind = 'word') {
     const ws = scopeWords();
     const tile = (go, icon, title, sub) =>
       `<button class="tile" data-go="${go}"><span class="tile-ic">${ic(icon)}</span><span class="tile-t">${title}</span><span class="tile-s">${sub}</span></button>`;
-    $('#pracBox').innerHTML = `
+    $('#pracBox').innerHTML =
+      kind === 'gram'
+        ? `
+      <div class="chips">${[...new Set(GRAM.map((g) => g.lv))].sort().map((l) => `<button data-glv="${l}" class="${l === gLevel() ? 'on' : ''}">HSK ${l}급</button>`).join('')}</div>
+      <div class="tiles">
+        ${tile('pw', 'layers', '문형 바꿔 쓰기', '문형으로 노트에 3문장')}
+        ${tile('sentCopy', 'write', '문장 따라쓰기', '예문을 노트에')}
+        ${tile('tr', 'keyboard', '작문 · 번역', '문장을 직접 입력')}
+      </div>
+      <p class="muted small">연습은 채점하지 않습니다. 문법별 익힘은 ‘문제’의 빈칸 문제로 기록됩니다.</p>`
+        : `
       <div class="prac-scope"><span>${esc(scopeName())}</span><button class="ghost mini-link" data-go="level">바꾸기 ${ic('chevronRight')}</button></div>
       <div class="tiles">
         ${tile('cards', 'cards', '카드 외우기', `안 외운 단어 ${ws.filter((w) => DB.st[w.w] !== 2).length}개`)}
         ${tile('trace', 'brush', '보고 쓰기', '획순 번호 따라 화면에')}
-        ${tile('sent', 'write', '따라쓰기', '단어 · 문장을 노트에')}
+        ${tile('wordCopy', 'write', '단어 따라쓰기', '단어를 노트에')}
         ${tile('blank', 'notes', '백지 테스트', '뜻만 보고 노트에 → 확인')}
-        ${tile('tr', 'keyboard', '작문 · 번역', '문장을 직접 입력')}
-        ${tile('pw', 'layers', '문형 바꿔 쓰기', '문형으로 노트에 3문장')}
       </div>
       <p class="muted small">연습은 채점하지 않습니다. 외움·쓸 수 있음은 ‘문제’에서 맞혀야 바뀝니다. (카드의 ‘알아요’와 단어 화면의 버튼으로 직접 바꿀 수도 있어요)</p>`;
   }
   $('#pracBox').onclick = (e) => {
+    const lvb = e.target.closest('[data-glv]');
+    if (lvb) {
+      DB.set.gLevel = +lvb.dataset.glv;
+      save();
+      return renderPractice('gram');
+    }
     const b = e.target.closest('[data-go]');
     if (!b) return;
     const g = b.dataset.go;
     if (g === 'level') return pickLevel();
     if (g === 'cards') return startCards(scopeWords().slice());
     if (g === 'trace') return startQuiz({ pool: writePool, label: '보고 쓰기 · ' + scopeName(), types: ['write'], count: 10, wmode: 'trace' });
-    if (g === 'sent') return startSentences();
+    if (g === 'wordCopy') return startSentences('word');
+    if (g === 'sentCopy') return startSentences('sent');
     if (g === 'blank') return startBlankTest(scopeWords().slice());
     if (g === 'tr') return startTranslate();
     if (g === 'pw') {

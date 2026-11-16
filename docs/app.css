@@ -587,3 +587,13 @@ button.rb { cursor: pointer; }
 
 .prac-scope { display: flex; align-items: center; justify-content: space-between; font-weight: 700; font-size: 15px; }
 .note-n { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 99px; background: var(--bad-soft); color: var(--bad); font-size: 12px; line-height: 20px; }
+
+/* 단어·문법 안의 [목록 · 연습 · 문제] */
+.subnav { margin-bottom: 14px; }
+.subnav[hidden] { display: none; }
+.subnav button.on { background: var(--fg); color: var(--bg); }
+.tiles.one { grid-template-columns: 1fr; }
+.tiles.one .tile { min-height: 0; flex-direction: row; align-items: center; gap: 12px; }
+.tiles.one .tile .tile-ic { margin: 0; }
+.tiles.one .tile .tile-t { margin: 0; }
+.tiles.one .tile .tile-s { margin-left: auto; }
