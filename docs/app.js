@@ -67,7 +67,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-17-0343'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-17-0348'; // tools/bump.js 가 sw.js 와 함께 올림
 
   // 화면(HTML)과 앱 파일 버전이 다르면(예전 저장본이 섞이면) 저장본을 비우고 한 번 새로 고침
   (() => {
@@ -197,15 +197,16 @@
   /* ---------------- 탭 ---------------- */
   let curTab = 'home';
   function showTab(name) {
-    if (!['home', 'words', 'grammar', 'quiz', 'notes', 'settings'].includes(name)) name = 'home';
+    if (!['home', 'words', 'grammar', 'practice', 'quiz', 'notes', 'settings'].includes(name)) name = 'home';
     curTab = name;
     $$('main > section').forEach((s) => (s.hidden = s.dataset.tab !== name));
-    const TITLE = { home: 'HSK 단어장', words: '단어장', grammar: '문법', quiz: '문제', notes: '오답노트', settings: '설정' };
+    const TITLE = { home: 'HSK 단어장', words: '단어장', grammar: '문법', practice: '연습', quiz: '문제', notes: '오답노트', settings: '설정' };
     $('.logo').textContent = TITLE[name];
     $('#homeBtn').hidden = name === 'home';
     if (name === 'home') renderHome();
     if (name === 'words') renderWords();
     if (name === 'grammar') renderGrammar();
+    if (name === 'practice') renderPractice();
     if (name === 'quiz') renderQuizTab();
     if (name === 'notes') renderNotes();
     if (name === 'settings') renderSettings();
@@ -331,6 +332,7 @@
     updateBadge();
     if (curTab === 'home') renderHome();
     if (curTab === 'grammar') renderGrammar();
+    if (curTab === 'practice') renderPractice();
     if (curTab === 'words') renderWords(true);
     if (curTab === 'quiz') renderQuizTab();
     if (curTab === 'notes') renderNotes();
@@ -438,9 +440,10 @@
       <div class="tiles">
         ${tile('words', 'book', '단어장', `${ws.length}단어${favs ? ` · 즐겨찾기 ${favs}` : ''}`)}
         ${tile('grammar', 'layers', '문법', `HSK ${DB.set.gLevel || 1}급 문법 ${GRAM.filter((g) => g.lv === (DB.set.gLevel || 1)).length || ''}`)}
+        ${tile('practice', 'write', '연습', '카드 · 쓰기 · 노트 · 작문')}
         ${tile('quiz', 'pencil', '문제', left ? `안 외운 단어 ${left}개` : '복습할 차례')}
-        ${tile('notes', 'notes', '오답노트', wrong ? `복습할 오답 ${wrong}개` : '오답 없음')}
       </div>
+      <button class="home-settings" data-go="notes">${ic('notes')}<span>오답노트${wrong ? ` <b class="note-n">${wrong}</b>` : ''}</span>${ic('chevronRight')}</button>
       <button class="home-settings" data-go="settings">${ic('sliders')}<span>설정 · 백업</span>${ic('chevronRight')}</button>`;
   }
   $('#homeBox').onclick = (e) => {
@@ -1622,6 +1625,7 @@
     return out;
   }
   const lvLabel = () => `HSK ${DB.set.track === 'n' ? '3.0' : '2.0'} ${levelName(DB.set.track, DB.set.level)}`;
+  // 문제: 채점되고 외움·쓸 수 있음·오답노트에 반영되는 것
   function renderQuizTab() {
     const ws = scopeWords();
     const left = ws.filter((w) => DB.st[w.w] !== 2).length;
@@ -1633,14 +1637,14 @@
     $('#quizBox').innerHTML = `
       ${levelCard()}
       <div class="qmain">
-        <div class="qmain-head"><span class="tile-ic">${ic('pencil')}</span><span><b>단어 문제</b><span class="muted small">뜻 · 한자 · 병음 · 성조 · 듣기를 섞어서</span></span></div>
+        <div class="qmain-head"><span class="tile-ic">${ic('pencil')}</span><span><b>단어 문제</b><span class="muted small">뜻 · 한자 · 병음 · 성조 · 듣기를 섞어서 · 2번 연속 맞히면 외움</span></span></div>
         <div class="qmain-btns">
           <button class="primary" data-go="learn" ${left ? '' : 'disabled'}>안 외운 단어 <b>${left}</b></button>
           <button data-go="dueR" ${dr ? '' : 'disabled'}>오늘 복습 <b>${dr}</b></button>
         </div>
       </div>
       <div class="qmain">
-        <div class="qmain-head"><span class="tile-ic">${ic('brush')}</span><span><b>쓰기 연습</b><span class="muted small">보고 쓰기 · 안 보고 쓰기 · 외운 단어부터</span></span></div>
+        <div class="qmain-head"><span class="tile-ic">${ic('brush')}</span><span><b>안 보고 쓰기</b><span class="muted small">뜻·병음만 보고 쓰기 · 2번 연속 통과하면 쓸 수 있음</span></span></div>
         <div class="qmain-btns">
           <button class="primary" data-go="write" ${wLeft ? '' : 'disabled'}>아직 못 쓰는 단어 <b>${wLeft}</b></button>
           <button data-go="dueW" ${dw ? '' : 'disabled'}>오늘 쓰기 복습 <b>${dw}</b></button>
@@ -1649,14 +1653,18 @@
       <div class="tiles">
         ${tile('tone', 'wave', '성조', '듣고 성조 고르기')}
         ${tile('gram', 'blocks', '문법', '빈칸 · 어순 맞추기')}
-        ${tile('sent', 'write', '따라쓰기', '단어 · 문장을 노트에')}
-        ${tile('tr', 'keyboard', '작문 · 번역', '문장을 직접 입력')}
       </div>`;
     const h = DB.hist.slice(0, 8);
     $('#quizHistory').innerHTML = h.length
       ? h.map((r) => `${fmtDate(r.t)} · ${esc(r.label || '')} · <b style="color:var(--fg)">${r.ok}/${r.n}</b>`).join('<br>')
       : '아직 기록이 없습니다';
   }
+  // 안 외운(못 쓰는) 단어 중 뜻을 외운 단어부터 (모자라면 나머지도)
+  const writePool = () => {
+    const left = scopeWords().filter((w) => canWrite(w) && !canWriteW(w));
+    const knownFirst = left.filter((w) => DB.st[w.w] === 2);
+    return knownFirst.length >= 10 ? knownFirst : left;
+  };
   $('#quizBox').onclick = (e) => {
     const b = e.target.closest('[data-go]');
     if (!b || b.disabled) return;
@@ -1667,18 +1675,44 @@
     if (g === 'dueR') return startDueR();
     if (g === 'dueW') return startDueW();
     if (g === 'tone') return startQuiz({ pool: () => scopeWords(), label: '성조 · ' + scopeName(), types: ['tone'] });
-    if (g === 'write') {
-      // 아직 못 쓰는 단어 중 뜻을 외운 단어부터 (모자라면 나머지도)
-      const pool = () => {
-        const left = scopeWords().filter((w) => canWrite(w) && !canWriteW(w));
-        const knownFirst = left.filter((w) => DB.st[w.w] === 2);
-        return knownFirst.length >= 10 ? knownFirst : left;
-      };
-      return startQuiz({ pool, label: '쓰기 연습', types: ['write'], count: 10 });
-    }
-    if (g === 'sent') return startSentences();
-    if (g === 'tr') return startTranslate();
+    if (g === 'write') return startQuiz({ pool: writePool, label: '안 보고 쓰기 · ' + scopeName(), types: ['write'], count: 10, wmode: 'free' });
     if (g === 'gram') return startGrammarQuiz();
+  };
+
+  // 연습: 채점 없이 익히는 것
+  function renderPractice() {
+    const ws = scopeWords();
+    const tile = (go, icon, title, sub) =>
+      `<button class="tile" data-go="${go}"><span class="tile-ic">${ic(icon)}</span><span class="tile-t">${title}</span><span class="tile-s">${sub}</span></button>`;
+    $('#pracBox').innerHTML = `
+      <div class="prac-scope"><span>${esc(scopeName())}</span><button class="ghost mini-link" data-go="level">바꾸기 ${ic('chevronRight')}</button></div>
+      <div class="tiles">
+        ${tile('cards', 'cards', '카드 외우기', `안 외운 단어 ${ws.filter((w) => DB.st[w.w] !== 2).length}개`)}
+        ${tile('trace', 'brush', '보고 쓰기', '획순 번호 따라 화면에')}
+        ${tile('sent', 'write', '따라쓰기', '단어 · 문장을 노트에')}
+        ${tile('blank', 'notes', '백지 테스트', '뜻만 보고 노트에 → 확인')}
+        ${tile('tr', 'keyboard', '작문 · 번역', '문장을 직접 입력')}
+        ${tile('pw', 'layers', '문형 바꿔 쓰기', '문형으로 노트에 3문장')}
+      </div>
+      <p class="muted small">연습은 채점하지 않습니다. 외움·쓸 수 있음은 ‘문제’에서 맞혀야 바뀝니다. (카드의 ‘알아요’와 단어 화면의 버튼으로 직접 바꿀 수도 있어요)</p>`;
+  }
+  $('#pracBox').onclick = (e) => {
+    const b = e.target.closest('[data-go]');
+    if (!b) return;
+    const g = b.dataset.go;
+    if (g === 'level') return pickLevel();
+    if (g === 'cards') return startCards(scopeWords().slice());
+    if (g === 'trace') return startQuiz({ pool: writePool, label: '보고 쓰기 · ' + scopeName(), types: ['write'], count: 10, wmode: 'trace' });
+    if (g === 'sent') return startSentences();
+    if (g === 'blank') return startBlankTest(scopeWords().slice());
+    if (g === 'tr') return startTranslate();
+    if (g === 'pw') {
+      if (!GRAM.length) return toast('문법을 불러오는 중이에요');
+      // 지금 문법 급수에서 덜 연습한 문형부터
+      const pts = GRAM.filter((x) => x.lv === gLevel());
+      const g2 = pts.sort((a, b) => ((DB.gram[a.id] || {}).w || 0) - ((DB.gram[b.id] || {}).w || 0) || Math.random() - 0.5)[0];
+      return g2 && startPatternWrite(g2);
+    }
   };
 
   // 보기(오답) 만들기
@@ -1729,7 +1763,7 @@
   }
 
   // pool: 단어 배열, 또는 그때그때 범위를 다시 계산하는 함수 (다음 문제를 누를 때 새로 외운 단어를 빼기 위해)
-  function startQuiz({ pool, label, review = false, types = MIX, count = 10, guided = true, onFinish }) {
+  function startQuiz({ pool, label, review = false, types = MIX, count = 10, guided = true, wmode, onFinish }) {
     const getPool = typeof pool === 'function' ? pool : () => pool;
     const first = getPool();
     if (!first.length) return toast('문제를 낼 단어가 없습니다');
@@ -1745,7 +1779,7 @@
       const qs = buildQuestions(src, types, n);
       qs.forEach((q) => {
         asked.add(q.w.w);
-        if (q.type === 'write') q.wmode = guided ? DB.set.wMode || 'trace' : 'free';
+        if (q.type === 'write') q.wmode = wmode || (guided ? 'trace' : 'free');
       });
       return qs;
     };
@@ -1900,7 +1934,7 @@
               : isTr(q.type)
               ? `<div class="seg sp-mode"><button data-trmode="trzh" class="${q.type === 'trzh' ? 'on' : ''}">작문 한→중</button><button data-trmode="trko" class="${q.type === 'trko' ? 'on' : ''}">번역 중→한</button></div>`
               : q.type === 'write'
-                ? `<div class="seg sp-mode"><button data-wmode="trace" class="${q.wmode === 'trace' ? 'on' : ''}">보고 쓰기</button><button data-wmode="free" class="${q.wmode !== 'trace' ? 'on' : ''}">안 보고 쓰기</button></div>`
+                ? `<span>${q.wmode === 'trace' ? '보고 쓰기 (획순 안내)' : '안 보고 쓰기'}</span>`
                 : `<span>${TYPE_NAME[q.type]}</span>`
           }<span>${i + 1} / ${qs.length}</span></div></div>`;
 
