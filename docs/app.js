@@ -67,7 +67,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-17-0415'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-17-0418'; // tools/bump.js 가 sw.js 와 함께 올림
 
   // 화면(HTML)과 앱 파일 버전이 다르면(예전 저장본이 섞이면) 저장본을 비우고 한 번 새로 고침
   (() => {
@@ -276,6 +276,24 @@
     const depth = (history.state && history.state.layer) || 0;
     while (stack.length > depth) popLayer();
   });
+  // 위에 열린 화면 n개를 닫은 뒤 then 실행 (history 뒤로 가기가 끝난 다음에)
+  function closeLayers(n, then) {
+    n = Math.min(n, stack.length);
+    if (IN_FRAME || !n) {
+      for (let k = 0; k < n; k++) popLayer();
+      return then && then();
+    }
+    const target = stack.length - n;
+    const wait = () => {
+      if (stack.length <= target) {
+        window.removeEventListener('popstate', check);
+        then && setTimeout(then, 0);
+      }
+    };
+    const check = () => setTimeout(wait, 0);
+    window.addEventListener('popstate', check);
+    history.go(-n);
+  }
   function closeTopLayer() {
     if (IN_FRAME) popLayer();
     else history.back();
@@ -1547,13 +1565,31 @@
       setTimeout(() => after && after(), 0);
       const n = results.length;
       const ok = results.filter((r) => r.ok).length;
-      if (n && ok / n >= 0.8 && !gLearned(g)) {
+      const pass = n && ok / n >= 0.8;
+      if (pass && !gLearned(g)) {
         DB.gram[g.id].l = Date.now();
         gSchedule(g, true); // 내일부터 복습
-        const nx = nextGram(g.lv) || nextGram(g.lv + 1);
         save();
-        toast(nx ? `익힘! 다음 문법: ${nx.t}` : '익힘! 이 급수 문법을 모두 익혔어요');
-      } else if (!gLearned(g)) toast('5문제 중 4개 이상 맞히면 익힘이 돼요. 설명을 한 번 더 보고 다시 풀어 보세요');
+      }
+      const nx = nextGram(g.lv) || nextGram(g.lv + 1);
+      const acts = [];
+      // 결과 화면에서 바로 다음 문법으로 (문제 화면·설명 화면을 닫고 다음 문법 설명을 엶)
+      if (gLearned(g) && nx)
+        acts.push({
+          label: `다음 문법 · ${esc(nx.t.split(':')[0])} ${ic('chevronRight')}`,
+          primary: true,
+          run: () => {
+            if (nx.lv !== gLevel()) DB.set.gLevel = nx.lv;
+            closeLayers(stack.length, () => startGrammarLesson(nx));
+          },
+        });
+      if (!gLearned(g)) {
+        acts.push({ label: `${ic('redo')} 다시 풀기`, primary: true, run: ({ restart }) => restart(lessonQs(g)) });
+        acts.push({ label: '설명 다시 보기', run: () => closeTopLayer() });
+      }
+      if (!acts.length) acts.push({ label: '이 급수 문법을 모두 익혔어요', run: () => closeLayers(stack.length, () => goTab('grammar')) });
+      toast(pass ? (nx ? '익힘!' : '익힘! 이 급수 문법을 모두 익혔어요') : '5문제 중 4개 이상 맞히면 익힘이 돼요');
+      return acts;
     });
   }
   // 오늘 문법 복습: 복습할 때가 된 문법마다 빈칸 1개 (모자라면 어순)
@@ -2001,7 +2037,7 @@
         };
 
         const finish = () => {
-          if (onFinish) onFinish(results);
+          const custom = (onFinish && onFinish(results)) || []; // [{label, primary, run(ctx)}]
           const graded = results.filter((r) => !r.practice);
           const practiced = results.length - graded.length;
           const ok = graded.filter((r) => r.ok).length;
@@ -2027,8 +2063,12 @@
               <div class="result-stats">${n ? `<span>정답 <b>${ok}</b></span><span>오답 <b>${wrongs.length}</b></span>` : ''}${solved ? `<span>오답 해결 <b>${solved}</b></span>` : ''}${practiced ? `<span>연습 <b>${practiced}</b></span>` : ''}</div>
               ${uniq.length ? `<div class="wrong-chips" aria-label="틀린 단어">${uniq.map((w) => `<button class="zh" data-w="${esc(w.w)}">${esc(w.w)}</button>`).join('')}</div><div class="muted small">틀린 단어는 오답노트에 담겼어요 · 누르면 단어 보기</div>` : ''}
             </div>
-            <div class="qz-bottom">${
-              retryRound
+            <div class="qz-bottom">${custom
+              .map((c, k) => `<button class="${c.primary ? 'primary ' : ''}big-btn" data-custom="${k}">${c.label}</button>`)
+              .join('')}${
+              custom.length
+                ? `<div class="row2"><button data-act="notes">${ic('notes')} 오답노트</button><button data-act="home">${ic('home')} 홈으로</button></div>`
+                : retryRound
                 ? // 틀린 문제까지 다시 푼 뒤: 다음 문제(같은 설정, 새 단어) / 홈으로
                   `${regen ? `<button class="primary big-btn" data-act="more">다음 문제 ${ic('chevronRight')}</button>` : ''}
               <button class="big-btn" data-act="home">${ic('home')} 홈으로</button>`
@@ -2038,6 +2078,8 @@
             }
             </div></div>`;
           L.body.onclick = (e) => {
+            const cb = e.target.closest('[data-custom]');
+            if (cb) return custom[+cb.dataset.custom].run({ restart, L });
             const chip = e.target.closest('[data-w]');
             if (chip) return openWord(chip.dataset.w);
             const b = e.target.closest('[data-act]');
