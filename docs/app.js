@@ -67,7 +67,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-17-0336'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-17-0338'; // tools/bump.js 가 sw.js 와 함께 올림
 
   // 화면(HTML)과 앱 파일 버전이 다르면(예전 저장본이 섞이면) 저장본을 비우고 한 번 새로 고침
   (() => {
@@ -98,6 +98,7 @@
     wwrong: {}, // 쓰기 오답노트 (단어 오답노트 DB.wrong 과 별개, 모양은 같음)
     srs: {}, // 간격 반복 { 단어: { r: {b 단계, due 다음 복습}, w: {...} } } — r 뜻(외움), w 쓰기
     daily: {}, // 날짜별 푼 개수 { '2026-11-16': 23 }
+    lc: {}, // 안 외운 단어를 연속으로 맞힌 횟수 (2번이면 자동으로 외움)
     gram: {}, // 문법 { id: { v 본 시각, ok 맞힌 수, x 틀린 수 } }
   };
   let DB;
@@ -367,6 +368,15 @@
           <button class="${dr ? 'primary' : ''}" data-go="dueR" ${dr ? '' : 'disabled'}>오늘 복습 · 단어 <b>${dr}</b></button>
           <button class="${dw ? 'primary' : ''}" data-go="dueW" ${dw ? '' : 'disabled'}>오늘 복습 · 쓰기 <b>${dw}</b></button>
         </div>
+        ${(() => {
+          if (dr || dw) return '';
+          // 내일 복습할 개수 (오늘 끝 ~ 내일 끝 사이에 예정된 것)
+          const end = dayStart() + 2 * 864e5;
+          const soon = Object.values(DB.srs).reduce((n, e) => n + (e.r && e.r.due < end ? 1 : 0) + (e.w && e.w.due < end ? 1 : 0), 0);
+          return `<div class="muted small today-note">${
+            soon ? `내일 복습할 단어 ${soon}개가 예정돼 있어요.` : '문제에서 2번 연속 맞히거나 외운 단어로 표시한 단어가 다음 날부터 여기에 나와요.'
+          }</div>`;
+        })()}
       </div>`;
   }
   const startDueR = () => startQuiz({ pool: () => dueWords('r'), label: '오늘 복습 · 단어', count: 20 });
@@ -1786,8 +1796,19 @@
           } else if (ok) {
             r.solved = markRight(q.w);
             if (DB.st[q.w.w] === 2) srsHit(q.w, 'r', true);
-            else if (!DB.st[q.w.w]) DB.st[q.w.w] = 1;
-          } else addWrong(q.w, q.type, answer);
+            else {
+              // 안 외운 단어를 2번 연속 맞히면 자동으로 '외움' → 내일부터 오늘 복습에 나옴
+              DB.lc[q.w.w] = (DB.lc[q.w.w] || 0) + 1;
+              if (DB.lc[q.w.w] >= 2) {
+                setKnown(q.w, true);
+                delete DB.lc[q.w.w];
+                r.learned = true;
+              } else DB.st[q.w.w] = 1;
+            }
+          } else {
+            delete DB.lc[q.w.w];
+            addWrong(q.w, q.type, answer);
+          }
           tick();
           results.push(r);
           save();
@@ -1799,7 +1820,7 @@
           $('.qz', L.body).classList.add('answered');
           const fb = $('.qz-fb', L.body);
           fb.className = 'qz-fb ' + (r.practice ? 'note' : r.ok ? 'ok' : 'bad');
-          fb.innerHTML = `<span class="fb-mark">${ic(r.practice ? 'brush' : r.ok ? 'check' : 'x')}</span><span class="fb-t"><b>${r.practice ? '따라 쓰기 완료' : r.ok ? '정답' : '오답'}</b>${r.solved ? ' · 오답 해결' : ''}<span class="fb-ans"><span class="zh">${esc(q.w.w)}</span> <span class="py">${esc(q.w.p)}</span> ${esc(meaning(q.w))}</span></span>`;
+          fb.innerHTML = `<span class="fb-mark">${ic(r.practice ? 'brush' : r.ok ? 'check' : 'x')}</span><span class="fb-t"><b>${r.practice ? '따라 쓰기 완료' : r.ok ? '정답' : '오답'}</b>${r.solved ? ' · 오답 해결' : ''}${r.learned ? ' · 외운 단어로 표시했어요' : ''}<span class="fb-ans"><span class="zh">${esc(q.w.w)}</span> <span class="py">${esc(q.w.p)}</span> ${esc(meaning(q.w))}</span></span>`;
           const mid = $('.qz-mid', L.body);
           if (mid && !mid.innerHTML.trim() && q.type !== 'listen') mid.innerHTML = replayBtn();
           $('.qz-actions', L.body).innerHTML = `<button data-act="detail">단어 보기</button>${markBtns(q.w, q.type)}<button class="primary grow" data-act="next">${i + 1 >= qs.length ? '결과 보기' : '다음 ' + ic('chevronRight')}</button>`;

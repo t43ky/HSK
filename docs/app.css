@@ -494,7 +494,7 @@ button.rb { cursor: pointer; }
 .today-card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px 16px; display: grid; gap: 12px; }
 .today-top { display: flex; align-items: center; gap: 12px; }
 .mini-ring { position: relative; width: 52px; height: 52px; flex: none; }
-.mini-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.mini-ring > svg { width: 100%; height: 100%; transform: rotate(-90deg); }
 .mini-ring circle { fill: none; stroke-width: 5; }
 .mini-ring span { position: absolute; inset: 0; display: grid; place-items: center; font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
 .mini-ring span .i { width: 20px; height: 20px; color: var(--known); stroke-width: 2.4; }
@@ -575,3 +575,5 @@ button.rb { cursor: pointer; }
 .task-box.ok b { color: var(--ok); }
 .mini-link { font-size: 12px; padding: 2px 6px; display: inline-flex; align-items: center; gap: 3px; vertical-align: 1px; }
 .mini-link .i { width: 14px; height: 14px; }
+
+.today-note { margin-top: -4px; line-height: 1.5; }
