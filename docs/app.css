@@ -603,3 +603,16 @@ button.rb { cursor: pointer; }
 
 .ord-right { display: grid; gap: 4px; justify-items: center; }
 .ord-ans.bad .ord-chip { text-decoration: line-through; text-decoration-color: var(--bad); }
+
+/* 숫자 다이얼 */
+.dial-btn { min-width: 76px; padding: 8px 12px; border-radius: 10px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.dial-box { display: grid; gap: 12px; }
+.dial-title { font-size: 17px; text-align: center; }
+.dial { position: relative; height: 220px; overflow: hidden; -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); }
+.dial-band { position: absolute; left: 0; right: 0; top: 88px; height: 44px; border-radius: 10px; background: var(--soft, rgba(127,127,127,.12)); pointer-events: none; }
+.dial-wheel { position: relative; height: 100%; overflow-y: auto; scroll-snap-type: y mandatory; padding: 88px 0; scroll-padding-top: 88px; box-sizing: border-box; scrollbar-width: none; overscroll-behavior: contain; }
+.dial-wheel::-webkit-scrollbar { display: none; }
+.dial-item { height: 44px; line-height: 44px; text-align: center; font-size: 22px; color: var(--muted); scroll-snap-align: start; font-variant-numeric: tabular-nums; cursor: pointer; }
+.dial-item.on { color: var(--fg); font-weight: 700; font-size: 26px; }
+.dial-input { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--muted); font-size: 14px; }
+.dial-input input { width: 90px; text-align: center; font-size: 17px; padding: 6px 8px; border-radius: 8px; }

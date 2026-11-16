@@ -67,7 +67,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-17-0427'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-17-0432'; // tools/bump.js 가 sw.js 와 함께 올림
 
   // 화면(HTML)과 앱 파일 버전이 다르면(예전 저장본이 섞이면) 저장본을 비우고 한 번 새로 고침
   (() => {
@@ -375,6 +375,70 @@
         el.remove();
         resolve(!!b && b.dataset.r === '1');
       };
+    });
+  }
+  // 숫자 다이얼: 위아래로 굴려서 고르고, 범위 밖의 큰 숫자는 직접 입력
+  function pickNumber({ title, value, min, max, step }) {
+    return new Promise((resolve) => {
+      const H = 44;
+      const vals = [];
+      for (let v = min; v <= max; v += step) vals.push(v);
+      const el = document.createElement('div');
+      el.className = 'modal';
+      el.innerHTML = `<div class="modal-box dial-box" role="dialog" aria-modal="true">
+          <b class="dial-title"></b>
+          <div class="dial"><div class="dial-band"></div><div class="dial-wheel">${vals.map((v) => `<div class="dial-item" data-v="${v}">${v}</div>`).join('')}</div></div>
+          <label class="dial-input">직접 입력 <input type="number" inputmode="numeric" min="1" max="9999"> 개</label>
+          <div class="actions" style="justify-content:flex-end"><button data-r="0">취소</button><button data-r="1" class="primary">확인</button></div>
+        </div>`;
+      $('.dial-title', el).textContent = title;
+      document.body.appendChild(el);
+      const wheel = $('.dial-wheel', el);
+      const inp = $('input', el);
+      let cur = value;
+      const mark = () => {
+        const i = Math.round(wheel.scrollTop / H);
+        el.querySelectorAll('.dial-item').forEach((d, k) => d.classList.toggle('on', k === i && vals[i] === cur));
+      };
+      const scrollTo = (v, smooth) => {
+        let i = 0;
+        vals.forEach((x, k) => Math.abs(x - v) < Math.abs(vals[i] - v) && (i = k));
+        wheel.scrollTo({ top: i * H, behavior: smooth ? 'smooth' : 'auto' });
+      };
+      inp.value = cur;
+      scrollTo(cur);
+      mark();
+      let t;
+      wheel.onscroll = () => {
+        clearTimeout(t);
+        t = setTimeout(() => {
+          const i = Math.max(0, Math.min(vals.length - 1, Math.round(wheel.scrollTop / H)));
+          if (document.activeElement === inp && vals[i] !== +inp.value && (+inp.value < min || +inp.value > max)) return mark();
+          cur = vals[i];
+          inp.value = cur;
+          mark();
+        }, 60);
+      };
+      inp.oninput = () => {
+        const v = Math.round(+inp.value);
+        if (!(v >= 1)) return;
+        cur = v;
+        if (v >= min && v <= max) scrollTo(v, true);
+        mark();
+      };
+      const close = (ok) => {
+        el.remove();
+        const v = Math.round(+inp.value);
+        resolve(ok && v >= 1 ? Math.min(9999, v) : null);
+      };
+      el.onclick = (e) => {
+        const it = e.target.closest('.dial-item');
+        if (it) return scrollTo(+it.dataset.v, true);
+        const b = e.target.closest('[data-r]');
+        if (!b && e.target !== el) return;
+        close(!!b && b.dataset.r === '1');
+      };
+      inp.onkeydown = (e) => e.key === 'Enter' && close(true);
     });
   }
   function refreshCurrent() {
@@ -2724,8 +2788,8 @@
   function renderSettings() {
     const s = DB.set;
     $('#setTheme').value = s.theme;
-    $('#setGoal').value = String(s.goal || 20);
-    $('#setRevCap').value = String(s.revCap || 30);
+    $('#setGoal').textContent = `${s.goal || 20}개`;
+    $('#setRevCap').textContent = `${s.revCap || 30}개`;
     $('#setRate').value = s.rate;
     $('#setAutoSpeak').checked = !!s.autoSpeak;
     $('#setHint').value = s.hint;
@@ -2745,8 +2809,16 @@
       after && after();
     });
   bindSet('#setTheme', 'theme', undefined, applyTheme);
-  bindSet('#setGoal', 'goal', (v) => +v);
-  bindSet('#setRevCap', 'revCap', (v) => +v);
+  const bindDial = (id, key, def, opt) =>
+    ($(id).onclick = () =>
+      pickNumber({ ...opt, value: DB.set[key] || def }).then((v) => {
+        if (v == null) return;
+        DB.set[key] = v;
+        save();
+        $(id).textContent = `${v}개`;
+      }));
+  bindDial('#setGoal', 'goal', 20, { title: '하루 목표', min: 1, max: 100, step: 1 });
+  bindDial('#setRevCap', 'revCap', 30, { title: '하루 복습 최대', min: 10, max: 200, step: 10 });
   bindSet('#setRate', 'rate', undefined, () => speak('你好'));
   bindSet('#setAutoSpeak', 'autoSpeak');
   bindSet('#setHint', 'hint');
