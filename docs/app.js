@@ -64,7 +64,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-16-2159'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-16-2245'; // tools/bump.js 가 sw.js 와 함께 올림
 
   /* ---------------- 저장 ---------------- */
   const KEY = 'hsk-study-v1';
@@ -915,31 +915,42 @@
   }
 
   // 문장 연습: 한자·병음·뜻을 보고 노트에 따라 써 보기. 채점 없음
+  // 따라쓰기용 단어: 지금 급수에서 아직 못 쓰는 단어 (없으면 급수 전체), 무작위 n개 → 예문과 같은 모양으로
+  const wordItem = (w) => ({ z: [w.w], p: [w.p.replace(/\s+/g, '')], k: meaning(w), word: true });
+  function pickCopyWords(n) {
+    const lv = levelWords().filter(canWrite);
+    const left = lv.filter((w) => !canWriteW(w));
+    return shuffle((left.length ? left : lv).slice()).slice(0, n).map(wordItem);
+  }
+  // 따라쓰기: 단어 또는 문장을 보고(한자·병음·뜻) 노트에 따라 쓰기. 채점 없음
   function startSentences() {
-    if (!SENTS.length) return toast('예문을 불러오는 중이에요. 잠시 후 다시 눌러 주세요');
-    let list = pickSentences(10);
+    const mode = () => (DB.set.copyMode === 'sent' ? 'sent' : 'word');
+    const make = () => (mode() === 'sent' ? pickSentences(10) : pickCopyWords(10));
+    if (mode() === 'sent' && !SENTS.length) DB.set.copyMode = 'word';
+    let list = make();
     let i = 0;
     openLayer({
-      title: '문장 연습',
+      title: '따라쓰기',
       cls: 'quiz-layer',
       render: (L) => {
         const draw = () => {
           if (i >= list.length) {
             L.body.innerHTML = `<div class="qz"><div class="qz-prompt result">
                 <div class="done-ic">${ic('check')}</div>
-                <div class="result-msg">${list.length}문장 따라 쓰기 끝</div>
-                <div class="muted small">문장 속 모르는 단어는 눌러서 즐겨찾기해 두세요</div></div>
-              <div class="qz-bottom"><button class="primary big-btn" data-act="more">다음 ${list.length}문장 ${ic('chevronRight')}</button>
+                <div class="result-msg">${list.length}${mode() === 'sent' ? '문장' : '단어'} 따라쓰기 끝</div></div>
+              <div class="qz-bottom"><button class="primary big-btn" data-act="more">다음 ${list.length}${mode() === 'sent' ? '문장' : '단어'} ${ic('chevronRight')}</button>
               <button class="big-btn" data-act="home">${ic('home')} 홈으로</button></div></div>`;
             return;
           }
           const x = list[i];
-          DB.sent[sid(x)] = Date.now();
-          save();
+          if (!x.word) {
+            DB.sent[sid(x)] = Date.now();
+            save();
+          }
           L.body.innerHTML = `<div class="qz">
             <div class="qz-top"><div class="q-progress"><i style="width:${(i / list.length) * 100}%"></i></div>
-              <div class="q-kind"><span>노트에 따라 쓰기</span><span>${i + 1} / ${list.length}</span></div></div>
-            <div class="qz-prompt sp copy">
+              <div class="q-kind"><div class="seg sp-mode"><button data-copy="word" class="${mode() === 'word' ? 'on' : ''}">단어</button><button data-copy="sent" class="${mode() === 'sent' ? 'on' : ''}">문장</button></div><span>${i + 1} / ${list.length}</span></div></div>
+            <div class="qz-prompt sp copy ${x.word ? 'single' : ''}">
               ${rubyHTML(x, null, true)}
               <div class="sp-ko">${esc(x.k)}</div>
             </div>
@@ -955,6 +966,14 @@
           if (wb) return BY.get(wb.dataset.w) && openWriting(BY.get(wb.dataset.w), 0);
           const b = e.target.closest('button');
           if (!b) return;
+          if (b.dataset.copy) {
+            if (b.dataset.copy === 'sent' && !SENTS.length) return toast('예문을 불러오는 중이에요');
+            DB.set.copyMode = b.dataset.copy;
+            save();
+            list = make();
+            i = 0;
+            return draw();
+          }
           const a = b.dataset.act;
           const x = list[i];
           if (a === 'say') speak(sentText(x));
@@ -964,7 +983,7 @@
             draw();
           }
           if (a === 'more') {
-            list = pickSentences(10);
+            list = make();
             i = 0;
             draw();
           }
@@ -1027,7 +1046,7 @@
         </div>
       </div>
       <div class="tiles">
-        ${tile('sent', 'chat', '문장 연습', '보고 노트에 따라 쓰기')}
+        ${tile('sent', 'write', '따라쓰기', '단어 · 문장을 노트에')}
         ${tile('tr', 'keyboard', '작문 · 번역', '문장을 직접 입력')}
       </div>`;
     const h = DB.hist.slice(0, 8);

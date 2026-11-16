@@ -483,3 +483,9 @@ button.rb { cursor: pointer; }
 .qz-prompt.sp.copy .ruby.boxed .rz { font-size: 30px; }
 
 .rgrp { display: inline-flex; align-items: flex-end; gap: 2px; white-space: nowrap; }
+
+/* 따라쓰기: 단어 하나는 더 크게 */
+.qz-prompt.sp.copy.single .ruby.boxed button.rb { padding: 10px 18px 14px; border-radius: 16px; }
+.qz-prompt.sp.copy.single .ruby.boxed .rz { font-size: 72px; line-height: 1.15; }
+.qz-prompt.sp.copy.single .rp { font-size: 20px; }
+.qz-prompt.sp.copy.single .sp-ko { font-size: 20px; color: var(--fg); }
