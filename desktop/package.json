@@ -1,0 +1,16 @@
+{
+  "name": "hsk-study",
+  "productName": "HSK 단어장",
+  "version": "1.0.0",
+  "description": "HSK 단어장 Windows 앱",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "pack:win": "electron-packager . HSK --platform=win32 --arch=x64 --out=out --overwrite --ignore=^/out"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "electron": "^45.4.1"
+  }
+}

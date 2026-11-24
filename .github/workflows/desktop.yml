@@ -1,0 +1,37 @@
+# Windows 앱 빌드: desktop-v* 태그를 올리면 Windows에서 빌드해 Releases에 zip을 올림
+name: Windows 앱
+on:
+  push:
+    tags: ['desktop-v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 빌드
+        working-directory: desktop
+        run: |
+          npm ci --no-audit --no-fund
+          npx electron-packager . HSK --platform=win32 --arch=x64 --out=out --overwrite --ignore="^/out" --ignore="^/node_modules" --icon=icon.ico --app-copyright="t43ky" --win32metadata.FileDescription="HSK 단어장" --win32metadata.ProductName="HSK 단어장"
+          Compress-Archive -Path out/HSK-win32-x64 -DestinationPath out/HSK-Windows-x64.zip
+      - name: Releases에 올리기
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: HSK 단어장 Windows 앱 ${{ github.ref_name }}
+          body: |
+            1. 아래 HSK-Windows-x64.zip 을 받아 압축을 풉니다.
+            2. 폴더 안의 HSK.exe 를 실행합니다. (처음엔 "Windows의 PC 보호" 창이 뜨면 '추가 정보' → '실행')
+            앱 내용은 실행할 때마다 최신 웹 버전으로 자동 업데이트됩니다.
+          files: desktop/out/HSK-Windows-x64.zip
+      - uses: actions/upload-artifact@v4
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        with:
+          name: HSK-Windows-x64
+          path: desktop/out/HSK-win32-x64

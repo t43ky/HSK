@@ -67,7 +67,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-17-0437'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-25-0214'; // tools/bump.js 가 sw.js 와 함께 올림
 
   // 화면(HTML)과 앱 파일 버전이 다르면(예전 저장본이 섞이면) 저장본을 비우고 한 번 새로 고침
   (() => {
@@ -298,6 +298,34 @@
     if (IN_FRAME) popLayer();
     else history.back();
   }
+
+  // PC 키보드: 1~9 선택지 · Enter/→ 다음 · Space 다시 듣기 · Esc 뒤로
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+    const t = e.target;
+    if (t && (t.matches('input, textarea, select, [contenteditable]') || t.isContentEditable)) return;
+    const modal = document.querySelector('.modal');
+    if (modal) {
+      if (e.key === 'Escape') modal.click();
+      return;
+    }
+    const scope = stack.length ? stack[stack.length - 1].el : document.querySelector('main');
+    if (!scope) return;
+    const vis = (b) => b && !b.disabled && b.offsetParent !== null;
+    const pick = (sel) => [...scope.querySelectorAll(sel)].filter(vis);
+    let b = null;
+    if (/^[1-9]$/.test(e.key)) b = pick('.opts button, .ord-pool button')[+e.key - 1];
+    else if (e.key === 'Enter' || e.key === 'ArrowRight') b = pick('[data-act="next"], [data-custom].primary, .qz-actions .primary')[0];
+    else if (e.key === ' ') b = pick('.replay')[0];
+    else if (e.key === 'Escape' && stack.length) {
+      e.preventDefault();
+      return closeTopLayer();
+    }
+    if (b) {
+      e.preventDefault();
+      b.click();
+    }
+  });
 
   // 화면 왼쪽 가장자리에서 오른쪽으로 밀면 뒤로 (홈 화면 앱은 Safari 의 뒤로 가기 제스처가 없음)
   (() => {
