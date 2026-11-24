@@ -14,7 +14,7 @@ const loadState = () => {
   try {
     return JSON.parse(fs.readFileSync(stateFile(), 'utf8'));
   } catch {
-    return { width: 1000, height: 820 };
+    return { width: 1200, height: 820 };
   }
 };
 
@@ -23,7 +23,7 @@ function create() {
   const st = loadState();
   const area = screen.getPrimaryDisplay().workAreaSize;
   win = new BrowserWindow({
-    width: Math.min(st.width || 1000, area.width),
+    width: Math.min(st.width || 1200, area.width),
     height: Math.min(st.height || 820, area.height),
     x: st.x,
     y: st.y,

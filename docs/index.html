@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="app-version" content="2026-11-25-0214">
+  <meta name="app-version" content="2026-11-25-0231">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>HSK 단어장</title>
   <meta name="description" content="HSK 단어장, 문제풀이, 오답노트, 한자 쓰기 연습">
@@ -15,7 +15,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon-180.png">
-  <link rel="stylesheet" href="app.css?v=2026-11-25-0214">
+  <link rel="stylesheet" href="app.css?v=2026-11-25-0231">
 </head>
 <body>
   <header class="top">
@@ -25,6 +25,24 @@
       <button class="ghost theme-btn" id="themeBtn" title="화면 모드" aria-label="화면 모드 바꾸기"><span data-ic="theme"></span></button>
     </div>
   </header>
+
+  <!-- PC 화면(넓은 창)에서만 보이는 왼쪽 메뉴 -->
+  <nav class="side" id="side" aria-label="메뉴">
+    <div class="side-logo">HSK 단어장</div>
+    <button data-nav="home"><span data-ic="home"></span>홈</button>
+    <div class="side-h">단어</div>
+    <button data-nav="words"><span data-ic="book"></span>단어장</button>
+    <button data-nav="wprac"><span data-ic="write"></span>연습</button>
+    <button data-nav="wquiz"><span data-ic="pencil"></span>문제</button>
+    <div class="side-h">문법</div>
+    <button data-nav="grammar"><span data-ic="layers"></span>문법 목록</button>
+    <button data-nav="gprac"><span data-ic="blocks"></span>연습</button>
+    <button data-nav="gquiz"><span data-ic="pencil"></span>문제</button>
+    <div class="side-h"></div>
+    <button data-nav="notes"><span data-ic="notes"></span>오답노트<b class="note-n" id="sideNoteN" hidden></b></button>
+    <button data-nav="settings"><span data-ic="sliders"></span>설정</button>
+    <div class="side-foot" id="sideFoot"></div>
+  </nav>
 
   <main id="main">
     <div class="seg wide subnav" id="subnav" hidden></div>
@@ -123,9 +141,11 @@
         <div class="row"><span>병음 표시 (단어장 목록)</span><input type="checkbox" id="setShowPy"></div>
         <div class="row"><span>뜻 표시 (단어장 목록)</span><input type="checkbox" id="setShowKo"></div>
       </div>
+      <h3>기기 간 동기화</h3>
+      <div class="card" id="syncBox"></div>
       <h3>기록 백업</h3>
       <div class="card">
-        <p class="muted small">기록은 이 기기의 브라우저에만 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 백업해 두세요.</p>
+        <p class="muted small">동기화를 켜지 않으면 기록은 이 기기에만 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 백업해 두세요.</p>
         <div class="actions">
           <button id="backupExport">백업 파일 저장</button>
           <button id="backupImport">백업 불러오기</button>
@@ -155,6 +175,6 @@
   <div class="toast" id="toast" hidden></div>
 
   <script src="lib/hanzi-writer.min.js"></script>
-  <script src="app.js?v=2026-11-25-0214"></script>
+  <script src="app.js?v=2026-11-25-0231"></script>
 </body>
 </html>

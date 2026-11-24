@@ -1,7 +1,7 @@
 {
   "name": "hsk-study",
   "productName": "HSK 단어장",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "HSK 단어장 Windows 앱",
   "main": "main.js",
   "private": true,

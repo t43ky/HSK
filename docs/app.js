@@ -11,8 +11,7 @@
     }
     return a;
   };
-  const today = () => {
-    const d = new Date();
+  const today = (d = new Date()) => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
   const isHan = (c) => /[㐀-鿿]/.test(c);
@@ -67,7 +66,7 @@
   const ic = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATHS[name]}</svg>`;
   document.querySelectorAll('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
 
-  const APP_VERSION = '2026-11-25-0214'; // tools/bump.js 가 sw.js 와 함께 올림
+  const APP_VERSION = '2026-11-25-0231'; // tools/bump.js 가 sw.js 와 함께 올림
 
   // 화면(HTML)과 앱 파일 버전이 다르면(예전 저장본이 섞이면) 저장본을 비우고 한 번 새로 고침
   (() => {
@@ -112,11 +111,23 @@
   if (DB.set.qScope === 'new') DB.set.qScope = 'level'; // 예전 '안 외운 단어' 범위 → 지금의 기본 범위
   DB.set.qTypes = (DB.set.qTypes || []).filter((t) => t !== 'trzh' && t !== 'trko'); // 작문·번역은 홈의 별도 메뉴로 옮김
   let saveT = 0;
+  // 내용이 실제로 바뀌었을 때만 '마지막 수정 시각'을 올림 (동기화 때 어느 쪽이 최근인지 판단)
+  const body = () => JSON.stringify({ ...DB, mod: 0 });
+  let lastBody = body();
+  const writeNow = () => {
+    const b = body();
+    if (b !== lastBody) {
+      lastBody = b;
+      DB.mod = Date.now();
+      syncSoon();
+    }
+    localStorage.setItem(KEY, JSON.stringify(DB));
+  };
   const save = () => {
     clearTimeout(saveT);
     saveT = setTimeout(() => {
       try {
-        localStorage.setItem(KEY, JSON.stringify(DB));
+        writeNow();
       } catch (e) {
         toast('저장하지 못했습니다: ' + e.message);
       }
@@ -124,7 +135,7 @@
   };
   window.addEventListener('pagehide', () => {
     try {
-      localStorage.setItem(KEY, JSON.stringify(DB));
+      writeNow();
     } catch {}
   });
 
@@ -218,6 +229,7 @@
     const TITLE = { home: 'HSK 단어장', notes: '오답노트', settings: '설정' };
     $('.logo').textContent = sub ? (sub[0] === 'word' ? '단어' : '문법') : TITLE[name];
     $('#homeBtn').hidden = name === 'home';
+    $$('#side [data-nav]').forEach((b) => b.classList.toggle('on', b.dataset.nav === name));
     const nav = $('#subnav');
     nav.hidden = !sub;
     if (sub) {
@@ -240,6 +252,21 @@
     window.scrollTo(0, 0);
   }
   $('#homeBtn').onclick = () => goTab('home');
+  // PC 화면: 창이 넓고 마우스를 쓰면 왼쪽 메뉴가 있는 PC용 배치
+  const DESK = matchMedia('(min-width: 980px) and (pointer: fine)');
+  const applyDesk = () => document.documentElement.classList.toggle('desk', DESK.matches);
+  applyDesk();
+  DESK.addEventListener('change', () => {
+    applyDesk();
+    if (curTab) refreshCurrent();
+  });
+  $('#side').onclick = (e) => {
+    const b = e.target.closest('[data-nav]');
+    if (!b) return;
+    const go = () => goTab(b.dataset.nav);
+    if (stack.length) closeLayers(stack.length, go);
+    else go();
+  };
   $('#subnav').onclick = (e) => {
     const b = e.target.closest('[data-sub]');
     if (b) goTab(b.dataset.sub);
@@ -564,6 +591,26 @@
   }
   const startDueR = () => startQuiz({ pool: () => dueWords('r'), label: '오늘 복습 · 단어', count: 20 });
   const startDueW = () => startQuiz({ pool: () => dueWords('w'), label: '오늘 복습 · 쓰기', types: ['write'], count: 20, guided: false });
+  // 최근 3주 학습량 (PC 화면 홈에서만 보임)
+  function activityCard() {
+    const goal = +DB.set.goal || 20;
+    const days = [];
+    for (let k = 20; k >= 0; k--) {
+      const d = new Date(Date.now() - k * 864e5);
+      days.push({ d, n: DB.daily[today(d)] || 0 });
+    }
+    const max = Math.max(goal, ...days.map((x) => x.n));
+    const total = days.reduce((a, x) => a + x.n, 0);
+    const met = days.filter((x) => x.n >= goal).length;
+    const lab = (d) => `${d.getMonth() + 1}/${d.getDate()}`;
+    return `<div class="act-card">
+        <div class="act-head"><b>최근 3주</b><span class="muted small">${total}개 · 목표 달성 ${met}일</span></div>
+        <div class="act-bars"><div class="act-goal" style="bottom:${(goal / max) * 100}%"><span>목표 ${goal}</span></div>${days
+          .map((x) => `<div class="act-col" title="${lab(x.d)} · ${x.n}개"><i class="${x.n >= goal ? 'met' : ''}" style="height:${(x.n / max) * 100}%"></i></div>`)
+          .join('')}</div>
+        <div class="act-x">${days.map((x, i) => `<span>${i % 7 === 0 || i === 20 ? lab(x.d) : ''}</span>`).join('')}</div>
+      </div>`;
+  }
   function renderHome() {
     const s = DB.set;
     const ws = levelWords();
@@ -582,6 +629,7 @@
         ${tile('words', 'book', '단어', `단어장 · 연습 · 문제${favs ? ` · 즐겨찾기 ${favs}` : ''}`)}
         ${tile('grammar', 'layers', '문법', '문법 목록 · 연습 · 문제')}
       </div>
+      ${activityCard()}
       <button class="home-settings" data-go="notes">${ic('notes')}<span>오답노트${wrong ? ` <b class="note-n">${wrong}</b>` : ''}</span>${ic('chevronRight')}</button>
       <button class="home-settings" data-go="settings">${ic('sliders')}<span>설정 · 백업</span>${ic('chevronRight')}</button>`;
   }
@@ -2646,6 +2694,12 @@
   /* ---------------- 오답노트 ---------------- */
   function updateBadge() {
     const n = Object.values(DB.wrong).filter((x) => !x.ok).length;
+    const sn = n + Object.values(DB.wwrong).filter((x) => !x.ok).length;
+    const sb = $('#sideNoteN');
+    if (sb) {
+      sb.hidden = !sn;
+      sb.textContent = sn > 99 ? '99+' : sn;
+    }
     const b = $('#noteBadge');
     if (!b) return;
     b.hidden = !n;
@@ -2810,6 +2864,7 @@
   /* ---------------- 설정 ---------------- */
   function renderSettings() {
     const s = DB.set;
+    renderSync();
     $('#setTheme').value = s.theme;
     $('#setGoal').textContent = `${s.goal || 20}개`;
     $('#setRevCap').textContent = `${s.revCap || 30}개`;
@@ -2858,7 +2913,7 @@
       DB = d;
       for (const k of Object.keys(DEFAULTS)) if (DB[k] == null) DB[k] = structuredClone(DEFAULTS[k]);
       DB.set = { ...DEFAULTS.set, ...DB.set };
-      save();
+      save(); // 불러온 기록이 가장 최근 기록이 됨 (동기화 때 기준)
       applyTheme();
       renderSettings();
       updateBadge();
@@ -2932,6 +2987,206 @@
     toast('기록을 모두 지웠습니다');
   };
 
+  /* ---------------- 기기 간 동기화 (GitHub 비공개 Gist, 무료) ---------------- */
+  // 이 기기에만 저장: { token, gist, at 마지막 동기화, err }
+  var SY = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('hsk-sync') || 'null') || {};
+    } catch {
+      return {};
+    }
+  })();
+  var syncT = 0;
+  var syncing = null;
+  const SYNC_FILE = 'hsk-sync.json';
+  const syncSave = () => {
+    try {
+      localStorage.setItem('hsk-sync', JSON.stringify(SY));
+    } catch {}
+  };
+  function syncSoon(ms = 15000) {
+    if (!SY || !SY.token || IN_FRAME) return;
+    clearTimeout(syncT);
+    syncT = setTimeout(() => syncNow(), ms);
+  }
+  // 두 기록 합치기: 최근에 바뀐 쪽을 기준으로, 다른 쪽에만 있는 학습 기록은 더함
+  function mergeDB(a, b) {
+    if (!b || typeof b !== 'object') return a;
+    const [n, o] = (a.mod || 0) >= (b.mod || 0) ? [a, b] : [b, a];
+    const r = structuredClone(n);
+    for (const k of Object.keys(DEFAULTS)) if (r[k] == null) r[k] = structuredClone(DEFAULTS[k]);
+    const addMissing = (k) => {
+      for (const [x, v] of Object.entries(o[k] || {})) if (r[k][x] == null) r[k][x] = v;
+    };
+    ['st', 'wr', 'lc', 'gram', 'sent', 'wrong', 'wwrong'].forEach(addMissing);
+    for (const [d, v] of Object.entries(o.daily || {})) r.daily[d] = Math.max(r.daily[d] || 0, v);
+    const seen = new Set(r.hist.map((h) => h.t));
+    r.hist = r.hist.concat((o.hist || []).filter((h) => !seen.has(h.t))).sort((x, y) => y.t - x.t).slice(0, 50);
+    for (const [w, e] of Object.entries(o.srs || {})) {
+      const cur = (r.srs[w] = r.srs[w] || {});
+      for (const kind of ['r', 'w']) {
+        if (!e[kind]) continue;
+        if (kind === 'r' && n.st && n.st[w] === 1) continue; // 최근 쪽에서 '안 외움'으로 바꾼 단어
+        if (!cur[kind] || (e[kind].due || 0) > (cur[kind].due || 0)) cur[kind] = e[kind];
+      }
+      if (!Object.keys(cur).length) delete r.srs[w];
+    }
+    for (const [id, e] of Object.entries(o.gsrs || {})) if (!r.gsrs[id] || (e.due || 0) > (r.gsrs[id].due || 0)) r.gsrs[id] = e;
+    r.set = { ...DEFAULTS.set, ...r.set, theme: a.set.theme }; // 화면 모드는 기기마다 따로
+    r.mod = Math.max(a.mod || 0, b.mod || 0);
+    return r;
+  }
+  async function gh(path, opt = {}) {
+    const res = await fetch('https://api.github.com' + path, {
+      ...opt,
+      cache: 'no-store',
+      headers: { Authorization: 'Bearer ' + SY.token, Accept: 'application/vnd.github+json', ...(opt.body ? { 'Content-Type': 'application/json' } : {}) },
+    });
+    if (res.status === 401) throw new Error('토큰이 맞지 않거나 만료됐어요');
+    if (res.status === 403 || res.status === 404) throw new Error('토큰에 Gist 권한이 없어요');
+    if (!res.ok) throw new Error('GitHub 응답 ' + res.status);
+    return res.json();
+  }
+  async function findGist() {
+    for (let page = 1; page <= 5; page++) {
+      const list = await gh(`/gists?per_page=100&page=${page}`);
+      const g = list.find((x) => x.files && x.files[SYNC_FILE]);
+      if (g) return g.id;
+      if (list.length < 100) break;
+    }
+    const g = await gh('/gists', {
+      method: 'POST',
+      body: JSON.stringify({ description: 'HSK 단어장 기기 간 동기화 (자동 생성)', public: false, files: { [SYNC_FILE]: { content: '{}' } } }),
+    });
+    return g.id;
+  }
+  // 가져와서 합치고, 바뀐 게 있으면 올림
+  function syncNow(manual = false) {
+    if (!SY.token || IN_FRAME) return Promise.resolve(false);
+    if (syncing) return syncing;
+    clearTimeout(syncT);
+    syncing = (async () => {
+      try {
+        clearTimeout(saveT);
+        writeNow(); // 아직 안 저장된 변경부터 반영
+        if (!SY.gist) {
+          SY.gist = await findGist();
+          syncSave();
+        }
+        let g;
+        try {
+          g = await gh('/gists/' + SY.gist);
+        } catch (e) {
+          if (!/권한/.test(e.message)) throw e;
+          SY.gist = await findGist(); // 지워진 Gist
+          g = await gh('/gists/' + SY.gist);
+        }
+        const f = g.files[SYNC_FILE];
+        let text = f ? f.content : '{}';
+        if (f && f.truncated) text = await (await fetch(f.raw_url, { cache: 'no-store' })).text();
+        let remote = null;
+        try {
+          const j = JSON.parse(text || '{}');
+          remote = j && j.app === 'hsk-study' ? j.data : null;
+        } catch {}
+        const before = JSON.stringify(DB);
+        const merged = remote ? mergeDB(DB, remote) : DB;
+        const after = JSON.stringify(merged);
+        if (after !== before) {
+          DB = merged;
+          lastBody = body();
+          try {
+            localStorage.setItem(KEY, after);
+          } catch {}
+          refreshCurrent();
+        }
+        if (!remote || after !== JSON.stringify({ ...remote, set: { ...remote.set, theme: DB.set.theme } })) {
+          await gh('/gists/' + SY.gist, {
+            method: 'PATCH',
+            body: JSON.stringify({ files: { [SYNC_FILE]: { content: JSON.stringify({ app: 'hsk-study', v: APP_VERSION, data: DB }) } } }),
+          });
+        }
+        SY.at = Date.now();
+        SY.err = '';
+        syncSave();
+        if (manual) toast('동기화했어요');
+        return true;
+      } catch (e) {
+        SY.err = e.message || '연결 실패';
+        syncSave();
+        if (manual) toast('동기화 실패: ' + SY.err);
+        return false;
+      } finally {
+        syncing = null;
+        if (curTab === 'settings') renderSync();
+        sideFoot();
+      }
+    })();
+    return syncing;
+  }
+  function sideFoot() {
+    const f = $('#sideFoot');
+    if (!f) return;
+    f.textContent = !SY.token || IN_FRAME ? '' : SY.err ? '동기화 문제 · 설정에서 확인' : SY.at ? `동기화됨 · ${new Date(SY.at).toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' })}` : '';
+  }
+  function renderSync() {
+    sideFoot();
+    const box = $('#syncBox');
+    if (!box) return;
+    if (IN_FRAME) {
+      box.innerHTML = '<p class="muted small">이 링크(claude.ai)에서는 동기화를 쓸 수 없어요. GitHub 주소의 앱이나 Windows 앱에서 써 주세요.</p>';
+      return;
+    }
+    const ago = (t) => {
+      const m = Math.round((Date.now() - t) / 60000);
+      return m < 1 ? '방금' : m < 60 ? `${m}분 전` : m < 1440 ? `${Math.round(m / 60)}시간 전` : `${Math.round(m / 1440)}일 전`;
+    };
+    box.innerHTML = SY.token
+      ? `<div class="sync-st ${SY.err ? 'bad' : 'ok'}">${SY.err ? `연결 문제: ${esc(SY.err)}` : SY.at ? `연결됨 · 마지막 동기화 ${ago(SY.at)}` : '연결됨'}</div>
+        <p class="muted small">휴대폰과 PC에 같은 토큰을 넣으면 학습 기록이 자동으로 합쳐져요. 앱을 열 때, 공부한 뒤 잠시 후, 앱을 닫을 때 동기화해요.</p>
+        <div class="actions"><button class="primary" data-sy="now">지금 동기화</button><button data-sy="off">연결 끊기</button></div>`
+      : `<p class="muted small">GitHub의 비공개 Gist에 기록을 저장해서 휴대폰·PC가 같은 기록을 써요. 무료예요.</p>
+        <ol class="muted small sync-help">
+          <li>GitHub → Settings → Developer settings → Personal access tokens → <b>Tokens (classic)</b> → Generate new token (classic)</li>
+          <li>Note는 아무거나, Expiration은 <b>No expiration</b>, 권한은 <b>gist</b> 하나만 체크 → Generate</li>
+          <li>나온 토큰(ghp_로 시작)을 아래에 붙여 넣기 · 다른 기기에도 같은 토큰을 넣기</li>
+        </ol>
+        <div class="sync-in"><input type="password" id="syncToken" placeholder="ghp_…" autocomplete="off" spellcheck="false"><button class="primary" data-sy="on">연결</button></div>`;
+  }
+  $('#syncBox') &&
+    ($('#syncBox').onclick = async (e) => {
+      const b = e.target.closest('[data-sy]');
+      if (!b) return;
+      const a = b.dataset.sy;
+      if (a === 'now') return syncNow(true);
+      if (a === 'off') {
+        if (!(await ask('이 기기의 동기화 연결을 끊을까요? 기록은 이 기기와 Gist에 그대로 남아요.', '연결 끊기'))) return;
+        SY = {};
+        syncSave();
+        return renderSync();
+      }
+      if (a === 'on') {
+        const t = $('#syncToken').value.trim();
+        if (!t) return toast('토큰을 붙여 넣어 주세요');
+        SY = { token: t };
+        b.disabled = true;
+        b.textContent = '연결 중…';
+        const ok = await syncNow();
+        if (!ok) {
+          toast('연결 실패: ' + SY.err);
+          SY = {};
+          syncSave();
+          renderSync();
+        } else toast('연결했어요. 다른 기기에도 같은 토큰을 넣으세요');
+      }
+    });
+  document.addEventListener('visibilitychange', () => {
+    if (!SY.token || IN_FRAME) return;
+    if (document.visibilityState === 'visible') {
+      if (!SY.at || Date.now() - SY.at > 60000) syncNow();
+    } else if (syncT) syncNow(); // 닫기 전에 남은 변경 올리기
+  });
+
   /* ---------------- 시작 ---------------- */
   async function boot() {
     $('#wordList').innerHTML = '<li class="empty" style="display:block">단어를 불러오는 중…</li>';
@@ -2990,7 +3245,7 @@
     showTab('home');
     updateBadge();
   }
-  boot();
+  boot().then(() => syncNow());
 
   // 업데이트: 앱을 다시 볼 때마다 새 버전을 확인하고, 새 버전이 적용되면 화면을 한 번 새로 고침
   if (!IN_FRAME && 'serviceWorker' in navigator && window.isSecureContext) {
